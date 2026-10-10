@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import '../models/user_model.dart';
 import '../utils/constants.dart';
 
@@ -154,6 +155,24 @@ class AuthService {
       rethrow;
     } catch (e) {
       throw Exception('Failed to sign in: ${e.toString()}');
+    }
+  }
+
+  /// Updates student WhatsApp notification preferences
+  Future<void> updateWhatsAppPreferences({
+    required String uid,
+    required String whatsappNumber,
+    required bool whatsappConsent,
+  }) async {
+    try {
+      await _db.collection('users').doc(uid).set({
+        'whatsappNumber': whatsappNumber.trim(),
+        'whatsappConsent': whatsappConsent,
+        'whatsappConsentAt': whatsappConsent ? Timestamp.now() : null,
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('Error updating WhatsApp preferences: $e');
+      rethrow;
     }
   }
 

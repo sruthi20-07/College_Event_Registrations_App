@@ -27,10 +27,12 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   late TextEditingController rollController;
   late TextEditingController emailController;
   late TextEditingController phoneController;
+  late TextEditingController whatsappController;
   late TextEditingController sectionController;
 
   String department = 'Information Technology';
   String year = '3rd Year';
+  bool whatsappConsent = false; // Must default to unselected (false)
 
   bool isLoading = false;
 
@@ -42,6 +44,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     rollController = TextEditingController();
     emailController = TextEditingController(text: user?.email ?? '');
     phoneController = TextEditingController();
+    whatsappController = TextEditingController();
     sectionController = TextEditingController(text: 'A');
 
     _loadProfileData();
@@ -68,6 +71,10 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           if (profile.year.isNotEmpty) {
             year = profile.year;
           }
+          if (profile.whatsappNumber.isNotEmpty) {
+            whatsappController.text = profile.whatsappNumber;
+          }
+          // Do not auto-preselect consent on form by requirement, preserve profile defaults if preferred
         });
       }
     }
@@ -79,6 +86,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     rollController.dispose();
     emailController.dispose();
     phoneController.dispose();
+    whatsappController.dispose();
     sectionController.dispose();
     super.dispose();
   }
@@ -129,6 +137,10 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         return;
       }
 
+      final String rawWhatsApp = whatsappController.text.trim().isNotEmpty
+          ? whatsappController.text.trim()
+          : phoneController.text.trim();
+
       final registrationDraft = RegistrationModel(
         id: '',
         eventId: widget.event.id,
@@ -145,6 +157,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             ? PaymentStatuses.pending
             : PaymentStatuses.free,
         paymentReference: widget.event.isPaid ? '' : 'FREE',
+        whatsappNumber: rawWhatsApp,
+        whatsappConsent: whatsappConsent,
+        whatsappConsentAt: whatsappConsent ? DateTime.now() : null,
       );
 
       // BRANCHING: IF PAID -> DUMMY PAYMENT, IF FREE -> DIRECT REGISTRATION
@@ -433,7 +448,127 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                 ],
               ),
 
-              const SizedBox(height: 28),
+              const SizedBox(height: 20),
+
+              // WHATSAPP NOTIFICATION PREFERENCES
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.mintLight,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: AppColors.mint),
+                          ),
+                          child: const Icon(
+                            Icons.chat_bubble_outline_rounded,
+                            color: AppColors.mintDark,
+                            size: 18,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'WhatsApp Event Ticket',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                  color: AppColors.textMain,
+                                ),
+                              ),
+                              Text(
+                                'Get admission ticket & QR pass on WhatsApp',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    TextFormField(
+                      controller: whatsappController,
+                      keyboardType: TextInputType.phone,
+                      decoration: InputDecoration(
+                        labelText: 'WhatsApp Mobile Number',
+                        hintText: '+91 9876543210',
+                        prefixIcon: const Icon(
+                          Icons.phone_android_rounded,
+                          color: AppColors.textSecondary,
+                        ),
+                        helperText:
+                            'Include country code (e.g. +91). Leave empty to use Phone Number above.',
+                        helperMaxLines: 2,
+                        filled: true,
+                        fillColor: AppColors.cardWhite,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    InkWell(
+                      onTap: () {
+                        setState(() {
+                          whatsappConsent = !whatsappConsent;
+                        });
+                      },
+                      borderRadius: BorderRadius.circular(10),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: Checkbox(
+                                value: whatsappConsent,
+                                activeColor: AppColors.coral,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(5),
+                                ),
+                                onChanged: (val) {
+                                  setState(() {
+                                    whatsappConsent = val ?? false;
+                                  });
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            const Expanded(
+                              child: Text(
+                                'I agree to receive WhatsApp messages about my event registration and ticket.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: AppColors.textMain,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
 
               SizedBox(
                 width: double.infinity,

@@ -28,6 +28,14 @@ class RegistrationModel {
   final DateTime? cancelledAt;
   final DateTime? attendedAt;
   final String verifiedByAdminUid;
+  final String whatsappNumber;
+  final bool whatsappConsent;
+  final DateTime? whatsappConsentAt;
+  final String whatsappStatus;
+  final String whatsappDeliveryMode;
+  final String whatsappMessageId;
+  final DateTime? whatsappSentAt;
+  final String whatsappError;
 
   RegistrationModel({
     required this.id,
@@ -55,6 +63,14 @@ class RegistrationModel {
     this.cancelledAt,
     this.attendedAt,
     this.verifiedByAdminUid = '',
+    this.whatsappNumber = '',
+    this.whatsappConsent = false,
+    this.whatsappConsentAt,
+    this.whatsappStatus = 'none',
+    this.whatsappDeliveryMode = 'manual',
+    this.whatsappMessageId = '',
+    this.whatsappSentAt,
+    this.whatsappError = '',
   }) : registeredAt = registeredAt ?? DateTime.now();
 
   String get userId => studentId;
@@ -66,6 +82,8 @@ class RegistrationModel {
       registrationStatus == RegistrationStatuses.registered;
   bool get isPaid => paymentStatus == 'paid' || paymentStatus == 'completed';
   bool get isAttended => attended || attendanceStatus == 'attended';
+  bool get isWhatsAppDelivered =>
+      whatsappStatus == 'delivered' || whatsappStatus == 'sent' || whatsappStatus == 'accepted';
 
   factory RegistrationModel.fromMap(Map<String, dynamic> map, String docId) {
     String resolvedUserId = (map['userId'] as String? ?? '').trim();
@@ -90,6 +108,10 @@ class RegistrationModel {
                 ? rawStudentId
                 : '');
 
+    final String resolvedPhone = map['phone'] as String? ?? '';
+    final String resolvedWhatsApp =
+        map['whatsappNumber'] as String? ?? (resolvedPhone.isNotEmpty ? resolvedPhone : '');
+
     return RegistrationModel(
       id: docId,
       eventId: map['eventId'] as String? ?? '',
@@ -100,7 +122,7 @@ class RegistrationModel {
       studentEmail:
           map['studentEmail'] as String? ?? map['email'] as String? ?? '',
       rollNumber: resolvedRoll,
-      phone: map['phone'] as String? ?? '',
+      phone: resolvedPhone,
       department:
           map['department'] as String? ?? map['branch'] as String? ?? '',
       year: map['year'] as String? ?? '',
@@ -135,6 +157,18 @@ class RegistrationModel {
           map['verifiedByAdminUid'] as String? ??
           map['verifiedBy'] as String? ??
           '',
+      whatsappNumber: resolvedWhatsApp,
+      whatsappConsent: map['whatsappConsent'] as bool? ?? false,
+      whatsappConsentAt: map['whatsappConsentAt'] != null
+          ? DateFormatter.parseDateTime(map['whatsappConsentAt'])
+          : null,
+      whatsappStatus: map['whatsappStatus'] as String? ?? 'none',
+      whatsappDeliveryMode: map['whatsappDeliveryMode'] as String? ?? 'manual',
+      whatsappMessageId: map['whatsappMessageId'] as String? ?? '',
+      whatsappSentAt: map['whatsappSentAt'] != null
+          ? DateFormatter.parseDateTime(map['whatsappSentAt'])
+          : null,
+      whatsappError: map['whatsappError'] as String? ?? '',
     );
   }
 
@@ -174,6 +208,14 @@ class RegistrationModel {
       'cancelledAt': cancelledAt?.toIso8601String(),
       'attendedAt': attendedAt?.toIso8601String(),
       'verifiedByAdminUid': verifiedByAdminUid,
+      'whatsappNumber': whatsappNumber,
+      'whatsappConsent': whatsappConsent,
+      'whatsappConsentAt': whatsappConsentAt?.toIso8601String(),
+      'whatsappStatus': whatsappStatus,
+      'whatsappDeliveryMode': whatsappDeliveryMode,
+      'whatsappMessageId': whatsappMessageId,
+      'whatsappSentAt': whatsappSentAt?.toIso8601String(),
+      'whatsappError': whatsappError,
     };
   }
 
@@ -209,6 +251,18 @@ class RegistrationModel {
           : null,
       'attendedAt': attendedAt != null ? Timestamp.fromDate(attendedAt!) : null,
       'verifiedByAdminUid': verifiedByAdminUid,
+      'whatsappNumber': whatsappNumber,
+      'whatsappConsent': whatsappConsent,
+      'whatsappConsentAt': whatsappConsentAt != null
+          ? Timestamp.fromDate(whatsappConsentAt!)
+          : null,
+      'whatsappStatus': whatsappStatus,
+      'whatsappDeliveryMode': whatsappDeliveryMode,
+      'whatsappMessageId': whatsappMessageId,
+      'whatsappSentAt': whatsappSentAt != null
+          ? Timestamp.fromDate(whatsappSentAt!)
+          : null,
+      'whatsappError': whatsappError,
     };
   }
 
@@ -238,6 +292,14 @@ class RegistrationModel {
     DateTime? cancelledAt,
     DateTime? attendedAt,
     String? verifiedByAdminUid,
+    String? whatsappNumber,
+    bool? whatsappConsent,
+    DateTime? whatsappConsentAt,
+    String? whatsappStatus,
+    String? whatsappDeliveryMode,
+    String? whatsappMessageId,
+    DateTime? whatsappSentAt,
+    String? whatsappError,
   }) {
     return RegistrationModel(
       id: id ?? this.id,
@@ -265,6 +327,14 @@ class RegistrationModel {
       cancelledAt: cancelledAt ?? this.cancelledAt,
       attendedAt: attendedAt ?? this.attendedAt,
       verifiedByAdminUid: verifiedByAdminUid ?? this.verifiedByAdminUid,
+      whatsappNumber: whatsappNumber ?? this.whatsappNumber,
+      whatsappConsent: whatsappConsent ?? this.whatsappConsent,
+      whatsappConsentAt: whatsappConsentAt ?? this.whatsappConsentAt,
+      whatsappStatus: whatsappStatus ?? this.whatsappStatus,
+      whatsappDeliveryMode: whatsappDeliveryMode ?? this.whatsappDeliveryMode,
+      whatsappMessageId: whatsappMessageId ?? this.whatsappMessageId,
+      whatsappSentAt: whatsappSentAt ?? this.whatsappSentAt,
+      whatsappError: whatsappError ?? this.whatsappError,
     );
   }
 }

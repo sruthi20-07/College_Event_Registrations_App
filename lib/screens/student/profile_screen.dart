@@ -318,10 +318,10 @@ class ProfileScreen extends StatelessWidget {
 
                 profileOption(
                   context,
-                  Icons.favorite_outline,
+                  Icons.bookmark_outline_rounded,
                   'Saved Events',
-                  AppColors.pinkLight,
-                  AppColors.pinkDark,
+                  AppColors.coralLight,
+                  AppColors.coralDark,
                   () {
                     Navigator.push(
                       context,
@@ -329,6 +329,17 @@ class ProfileScreen extends StatelessWidget {
                         builder: (_) => const SavedEventsScreen(),
                       ),
                     );
+                  },
+                ),
+
+                profileOption(
+                  context,
+                  Icons.chat_bubble_outline_rounded,
+                  'WhatsApp Notification Preferences',
+                  AppColors.mintLight,
+                  AppColors.mintDark,
+                  () {
+                    _showWhatsAppPreferencesSheet(context, user, authService);
                   },
                 ),
 
@@ -393,6 +404,166 @@ class ProfileScreen extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+
+  void _showWhatsAppPreferencesSheet(
+    BuildContext context,
+    UserModel? user,
+    AuthService authService,
+  ) {
+    final uid = authService.currentUid;
+    if (uid == null) return;
+
+    final phoneController = TextEditingController(
+      text: user?.whatsappNumber.isNotEmpty == true
+          ? user!.whatsappNumber
+          : '',
+    );
+    bool consent = user?.whatsappConsent ?? false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+            return Container(
+              padding: EdgeInsets.fromLTRB(20, 20, 20, 24 + bottomInset),
+              decoration: const BoxDecoration(
+                color: AppColors.cardWhite,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.border,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  const Row(
+                    children: [
+                      Icon(
+                        Icons.chat_bubble_outline_rounded,
+                        color: AppColors.mintDark,
+                      ),
+                      SizedBox(width: 10),
+                      Text(
+                        'WhatsApp Notification Preferences',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textMain,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Receive digital ticket updates, confirmation passes, and schedule reminders directly on WhatsApp.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: phoneController,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(
+                      labelText: 'WhatsApp Number (with Country Code)',
+                      hintText: '+91 9876543210',
+                      prefixIcon: Icon(Icons.phone_android),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: Checkbox(
+                          value: consent,
+                          activeColor: AppColors.coral,
+                          onChanged: (val) {
+                            setModalState(() => consent = val ?? false);
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Text(
+                          'I agree to receive WhatsApp messages about my event registration and ticket.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textMain,
+                            height: 1.3,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        final rawNumber = phoneController.text.trim();
+                        try {
+                          await authService.updateWhatsAppPreferences(
+                            uid: uid,
+                            whatsappNumber: rawNumber,
+                            whatsappConsent: consent,
+                          );
+                          if (sheetContext.mounted) {
+                            Navigator.pop(sheetContext);
+                          }
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: const Text(
+                                  'WhatsApp preferences saved successfully!',
+                                ),
+                                backgroundColor: AppColors.mintDark,
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Failed to update: $e'),
+                                backgroundColor: AppColors.pinkDark,
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          }
+                        }
+                      },
+                      child: const Text('Save Preferences'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 

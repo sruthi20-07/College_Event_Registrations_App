@@ -27,7 +27,7 @@ class EventModel {
     required this.title,
     required this.description,
     required this.category,
-    required this.posterUrl,
+    this.posterUrl = '',
     required this.date,
     required this.startTime,
     required this.endTime,

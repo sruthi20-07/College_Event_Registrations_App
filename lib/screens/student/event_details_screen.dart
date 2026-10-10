@@ -53,6 +53,58 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
     });
   }
 
+  Color _getCategoryColor(String category) {
+    switch (category.toLowerCase()) {
+      case 'technical':
+      case 'hackathon':
+        return AppColors.skyBlue;
+      case 'cultural':
+        return AppColors.pink;
+      case 'workshop':
+      case 'seminar':
+        return AppColors.primaryLight;
+      case 'sports':
+        return AppColors.peach;
+      default:
+        return AppColors.lavender;
+    }
+  }
+
+  Color _getCategoryDarkColor(String category) {
+    switch (category.toLowerCase()) {
+      case 'technical':
+      case 'hackathon':
+        return AppColors.skyBlueDark;
+      case 'cultural':
+        return AppColors.pinkDark;
+      case 'workshop':
+      case 'seminar':
+        return AppColors.primaryDark;
+      case 'sports':
+        return AppColors.peachDark;
+      default:
+        return AppColors.lavenderDark;
+    }
+  }
+
+  IconData _getCategoryIcon(String category) {
+    switch (category.toLowerCase()) {
+      case 'technical':
+        return Icons.code_rounded;
+      case 'hackathon':
+        return Icons.terminal_rounded;
+      case 'cultural':
+        return Icons.palette_outlined;
+      case 'workshop':
+      case 'seminar':
+        return Icons.school_outlined;
+      case 'sports':
+        return Icons.fitness_center_rounded;
+      default:
+        return Icons.event_available_rounded;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentUid = _authService.currentUid ?? 'demo_user';
@@ -105,10 +157,10 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                       width: double.infinity,
                       height: 190,
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
+                        gradient: LinearGradient(
                           colors: [
-                            Color(0xFFFFDED6),
-                            Color(0xFFE5E1FD),
+                            _getCategoryColor(liveEvent.category).withValues(alpha: 0.7),
+                            AppColors.lavenderLight,
                           ],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
@@ -116,20 +168,43 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                         borderRadius: BorderRadius.circular(22),
                         border: Border.all(color: AppColors.border),
                       ),
-                      child: Center(
-                        child: Container(
-                          padding: const EdgeInsets.all(18),
-                          decoration: BoxDecoration(
-                            color: AppColors.cardWhite.withValues(alpha: 0.85),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.event_seat_rounded,
-                            color: AppColors.coral,
-                            size: 52,
-                          ),
-                        ),
-                      ),
+                      child: liveEvent.posterUrl.startsWith('http')
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(22),
+                              child: Image.network(
+                                liveEvent.posterUrl,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    Center(
+                                  child: Container(
+                                    padding: const EdgeInsets.all(18),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.cardWhite.withValues(alpha: 0.9),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      _getCategoryIcon(liveEvent.category),
+                                      color: _getCategoryDarkColor(liveEvent.category),
+                                      size: 48,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            )
+                          : Center(
+                              child: Container(
+                                padding: const EdgeInsets.all(18),
+                                decoration: BoxDecoration(
+                                  color: AppColors.cardWhite.withValues(alpha: 0.9),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  _getCategoryIcon(liveEvent.category),
+                                  color: _getCategoryDarkColor(liveEvent.category),
+                                  size: 48,
+                                ),
+                              ),
+                            ),
                     ),
 
                     const SizedBox(height: 20),

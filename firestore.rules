@@ -95,6 +95,21 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // WhatsApp Notification Tracking Logs collection
+    match /notification_logs/{logId} {
+      // Students can read their own notification status; admins can read all
+      allow read: if isAdmin() || (
+        isAuthenticated() && resource.data.studentId == request.auth.uid
+      );
+      // Students can queue/record notification requests for their own account
+      allow create, update: if isAdmin() || (
+        isAuthenticated() && (
+          request.resource.data.studentId == request.auth.uid
+        )
+      );
+      allow delete: if isAdmin();
+    }
+
     // User profiles collection
     match /users/{userId} {
       allow read: if isAuthenticated();

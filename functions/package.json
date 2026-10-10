@@ -1,0 +1,15 @@
+{
+  "name": "college-event-app-functions",
+  "description": "WhatsApp Cloud API Notification Backend & Webhook for College Event App",
+  "version": "1.0.0",
+  "engines": {
+    "node": "18"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "firebase-admin": "^12.0.0",
+    "firebase-functions": "^5.0.0",
+    "axios": "^1.7.7"
+  },
+  "private": true
+}

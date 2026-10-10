@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../data/event_data.dart' as mock_data;
 import '../../models/event_model.dart';
+import '../../services/auth_service.dart';
 import '../../services/event_service.dart';
+import '../../services/registration_service.dart';
 import '../../services/storage_service.dart';
 import '../../utils/constants.dart';
 import '../../widgets/event_card.dart';
@@ -15,83 +17,102 @@ class SavedEventsScreen extends StatefulWidget {
 }
 
 class _SavedEventsScreenState extends State<SavedEventsScreen> {
-  List<String> savedIds = [];
   final EventService _eventService = EventService();
-
-  @override
-  void initState() {
-    super.initState();
-    loadSavedEvents();
-  }
-
-  Future<void> loadSavedEvents() async {
-    final result = await StorageService.getSavedEvents();
-    if (mounted) {
-      setState(() {
-        savedIds = result;
-      });
-    }
-  }
+  final RegistrationService _registrationService = RegistrationService();
+  final AuthService _authService = AuthService();
 
   @override
   Widget build(BuildContext context) {
+    final uid = _authService.currentUid ?? '';
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Saved Events')),
-      body: StreamBuilder<List<EventModel>>(
-        stream: _eventService.streamEvents(),
-        builder: (context, snapshot) {
-          final allEvents = (snapshot.hasData && snapshot.data!.isNotEmpty)
-              ? snapshot.data!
-              : mock_data.events;
+      appBar: AppBar(
+        title: const Text('Saved Events'),
+        centerTitle: true,
+      ),
+      body: StreamBuilder<List<String>>(
+        stream: uid.isNotEmpty
+            ? _registrationService.streamSavedEventIds(uid)
+            : Stream.value([]),
+        builder: (context, savedSnapshot) {
+          return FutureBuilder<List<String>>(
+            future: StorageService.getSavedEvents(),
+            builder: (context, localSnapshot) {
+              final firestoreSaved = savedSnapshot.data ?? [];
+              final localSaved = localSnapshot.data ?? [];
+              final Set<String> allSavedIds = {
+                ...firestoreSaved,
+                ...localSaved,
+              };
 
-          final savedEvents = allEvents
-              .where((event) => savedIds.contains(event.id))
-              .toList();
+              return StreamBuilder<List<EventModel>>(
+                stream: _eventService.streamEvents(),
+                builder: (context, eventSnapshot) {
+                  final allEvents =
+                      (eventSnapshot.hasData && eventSnapshot.data!.isNotEmpty)
+                          ? eventSnapshot.data!
+                          : mock_data.events;
 
-          if (savedEvents.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: AppColors.pinkLight,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.favorite_border,
-                      size: 44,
-                      color: AppColors.pinkDark,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Text(
-                    'No saved events yet',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: AppColors.textMain,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Tap the heart icon on any event to save it here',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }
+                  final savedEvents = allEvents
+                      .where((event) => allSavedIds.contains(event.id))
+                      .toList();
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(20),
-            itemCount: savedEvents.length,
-            itemBuilder: (context, index) {
-              return EventCard(event: savedEvents[index]);
+                  if (savedEvents.isEmpty) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: AppColors.coralLight,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: AppColors.coral.withValues(alpha: 0.5),
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.bookmark_border_rounded,
+                                size: 48,
+                                color: AppColors.coral,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'No saved events yet',
+                              style: TextStyle(
+                                fontSize: 18,
+                                color: AppColors.textMain,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            const Text(
+                              'Tap the bookmark icon on any event to save it here for quick access.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: AppColors.textSecondary,
+                                height: 1.3,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+
+                  return ListView.builder(
+                    padding: const EdgeInsets.all(20),
+                    itemCount: savedEvents.length,
+                    itemBuilder: (context, index) {
+                      return EventCard(event: savedEvents[index]);
+                    },
+                  );
+                },
+              );
             },
           );
         },

@@ -1,10 +1,7 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../models/event_model.dart';
 import '../../services/event_service.dart';
-import '../../services/storage_service.dart';
 import '../../utils/constants.dart';
 import '../../utils/date_formatter.dart';
 
@@ -20,8 +17,6 @@ class CreateEditEventScreen extends StatefulWidget {
 class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
   final _formKey = GlobalKey<FormState>();
   final EventService _eventService = EventService();
-  final StorageService _storageService = StorageService();
-  final ImagePicker _imagePicker = ImagePicker();
 
   late TextEditingController _titleController;
   late TextEditingController _descriptionController;
@@ -38,9 +33,7 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
   DateTime _selectedDate = DateTime.now().add(const Duration(days: 7));
   DateTime _selectedDeadline = DateTime.now().add(const Duration(days: 6));
 
-  Uint8List? _selectedImageBytes;
   bool _isLoading = false;
-  bool _isUploadingPoster = false;
 
   bool get isEditing => widget.event != null;
 
@@ -87,31 +80,6 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
     super.dispose();
   }
 
-  Future<void> _pickImage(ImageSource source) async {
-    try {
-      final XFile? picked = await _imagePicker.pickImage(
-        source: source,
-        maxWidth: 1200,
-        maxHeight: 1200,
-        imageQuality: 85,
-      );
-
-      if (picked != null) {
-        final bytes = await picked.readAsBytes();
-        if (bytes.lengthInBytes > 5 * 1024 * 1024) {
-          _showSnackBar('Image file size must be less than 5MB', isError: true);
-          return;
-        }
-
-        setState(() {
-          _selectedImageBytes = bytes;
-        });
-      }
-    } catch (e) {
-      _showSnackBar('Failed to pick image: ${e.toString()}', isError: true);
-    }
-  }
-
   Future<void> _selectDate(BuildContext context, bool isDeadline) async {
     final initialDate = isDeadline ? _selectedDeadline : _selectedDate;
     final picked = await showDatePicker(
@@ -149,6 +117,7 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
   }
 
   Future<void> _saveEvent() async {
+    if (_isLoading) return;
     if (!_formKey.currentState!.validate()) return;
 
     final int capacity = int.tryParse(_capacityController.text.trim()) ?? 0;
@@ -169,25 +138,7 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
     });
 
     try {
-      String finalPosterUrl = _posterUrlController.text.trim();
-
-      // UPLOAD IMAGE TO FIREBASE STORAGE IF SELECTED
-      if (_selectedImageBytes != null) {
-        setState(() => _isUploadingPoster = true);
-        final tempId = isEditing
-            ? widget.event!.id
-            : 'evt_${DateTime.now().millisecondsSinceEpoch}';
-
-        finalPosterUrl = await _storageService.uploadEventPosterBytes(
-          _selectedImageBytes!,
-          tempId,
-        );
-        setState(() => _isUploadingPoster = false);
-      }
-
-      if (finalPosterUrl.isEmpty) {
-        finalPosterUrl = 'assets/images/default_event.jpg';
-      }
+      final String finalPosterUrl = _posterUrlController.text.trim();
 
       if (isEditing) {
         final existing = widget.event!;
@@ -243,12 +194,16 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
         Navigator.pop(context);
       }
     } catch (e) {
-      _showSnackBar('Failed to save event: ${e.toString()}', isError: true);
+      debugPrint('Error saving event: $e');
+      final cleanMsg = e
+          .toString()
+          .replaceAll('Exception: ', '')
+          .replaceAll('FirebaseException: ', '');
+      _showSnackBar(cleanMsg, isError: true);
     } finally {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _isUploadingPoster = false;
         });
       }
     }
@@ -269,8 +224,64 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
     );
   }
 
+  Color _getCategoryColor(String category) {
+    switch (category.toLowerCase()) {
+      case 'technical':
+      case 'hackathon':
+        return AppColors.skyBlue;
+      case 'cultural':
+        return AppColors.pink;
+      case 'workshop':
+      case 'seminar':
+        return AppColors.primaryLight;
+      case 'sports':
+        return AppColors.peach;
+      default:
+        return AppColors.lavender;
+    }
+  }
+
+  Color _getCategoryDarkColor(String category) {
+    switch (category.toLowerCase()) {
+      case 'technical':
+      case 'hackathon':
+        return AppColors.skyBlueDark;
+      case 'cultural':
+        return AppColors.pinkDark;
+      case 'workshop':
+      case 'seminar':
+        return AppColors.primaryDark;
+      case 'sports':
+        return AppColors.peachDark;
+      default:
+        return AppColors.lavenderDark;
+    }
+  }
+
+  IconData _getCategoryIcon(String category) {
+    switch (category.toLowerCase()) {
+      case 'technical':
+        return Icons.code_rounded;
+      case 'hackathon':
+        return Icons.terminal_rounded;
+      case 'cultural':
+        return Icons.palette_outlined;
+      case 'workshop':
+      case 'seminar':
+        return Icons.school_outlined;
+      case 'sports':
+        return Icons.fitness_center_rounded;
+      default:
+        return Icons.event_available_rounded;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final catColor = _getCategoryColor(_selectedCategory);
+    final catDarkColor = _getCategoryDarkColor(_selectedCategory);
+    final catIcon = _getCategoryIcon(_selectedCategory);
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -297,7 +308,9 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
                     decoration: BoxDecoration(
                       color: AppColors.sageLight,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.primarySage.withValues(alpha: 0.5)),
+                      border: Border.all(
+                        color: AppColors.primarySage.withValues(alpha: 0.5),
+                      ),
                     ),
                     child: Row(
                       children: [
@@ -308,7 +321,9 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Icon(
-                            isEditing ? Icons.edit_calendar_outlined : Icons.add_circle_outline,
+                            isEditing
+                                ? Icons.edit_calendar_outlined
+                                : Icons.add_circle_outline,
                             color: AppColors.sageDark,
                             size: 24,
                           ),
@@ -319,7 +334,9 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                isEditing ? 'Update Event Details' : 'Fill in Event Details',
+                                isEditing
+                                    ? 'Update Event Details'
+                                    : 'Fill in Event Details',
                                 style: const TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
@@ -342,8 +359,12 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  // POSTER UPLOAD SECTION
-                  _buildSectionHeader(Icons.image_outlined, 'Event Poster', 'Upload a cover image or provide a link'),
+                  // CATEGORY COVER THEME CARD
+                  _buildSectionHeader(
+                    Icons.palette_outlined,
+                    'Cover Theme & Visuals',
+                    'Auto-styled pastel banner based on event category',
+                  ),
                   const SizedBox(height: 12),
 
                   Container(
@@ -358,72 +379,49 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
                       children: [
                         Container(
                           width: double.infinity,
-                          height: 180,
+                          height: 160,
                           decoration: BoxDecoration(
-                            color: AppColors.skyBlueLight,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: AppColors.pastelSkyBlue,
+                            gradient: LinearGradient(
+                              colors: [
+                                catColor.withValues(alpha: 0.6),
+                                AppColors.lavenderLight,
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
                             ),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: catColor),
                           ),
-                          child: _selectedImageBytes != null
+                          child: _posterUrlController.text.startsWith('http')
                               ? ClipRRect(
                                   borderRadius: BorderRadius.circular(14),
-                                  child: Image.memory(
-                                    _selectedImageBytes!,
+                                  child: Image.network(
+                                    _posterUrlController.text,
                                     fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) =>
+                                        _buildCategoryThemePlaceholder(
+                                          catColor,
+                                          catDarkColor,
+                                          catIcon,
+                                        ),
                                   ),
                                 )
-                              : (_posterUrlController.text.startsWith('http')
-                                    ? ClipRRect(
-                                        borderRadius: BorderRadius.circular(14),
-                                        child: Image.network(
-                                          _posterUrlController.text,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (context, error, stackTrace) =>
-                                              _buildPosterPlaceholder(),
-                                        ),
-                                      )
-                                    : _buildPosterPlaceholder()),
-                        ),
-                        const SizedBox(height: 14),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            OutlinedButton.icon(
-                              onPressed: () => _pickImage(ImageSource.gallery),
-                              style: OutlinedButton.styleFrom(
-                                side: const BorderSide(color: AppColors.sageDark),
-                                foregroundColor: AppColors.sageDark,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
+                              : _buildCategoryThemePlaceholder(
+                                  catColor,
+                                  catDarkColor,
+                                  catIcon,
                                 ),
-                              ),
-                              icon: const Icon(Icons.photo_library_outlined, size: 18),
-                              label: const Text('From Gallery'),
-                            ),
-                            const SizedBox(width: 12),
-                            OutlinedButton.icon(
-                              onPressed: () => _pickImage(ImageSource.camera),
-                              style: OutlinedButton.styleFrom(
-                                side: const BorderSide(color: AppColors.lavenderDark),
-                                foregroundColor: AppColors.lavenderDark,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                              ),
-                              icon: const Icon(Icons.camera_alt_outlined, size: 18),
-                              label: const Text('Camera'),
-                            ),
-                          ],
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
                           controller: _posterUrlController,
                           decoration: const InputDecoration(
-                            labelText: 'Or paste Poster Image URL (Optional)',
-                            hintText: 'https://...',
-                            prefixIcon: Icon(Icons.link_outlined, color: AppColors.textSecondary),
+                            labelText: 'External Image URL (Optional)',
+                            hintText: 'https://... (Leave blank for category pastel theme)',
+                            prefixIcon: Icon(
+                              Icons.link_outlined,
+                              color: AppColors.textSecondary,
+                            ),
                           ),
                           onChanged: (_) => setState(() {}),
                         ),
@@ -434,7 +432,11 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
                   const SizedBox(height: 24),
 
                   // BASIC DETAILS
-                  _buildSectionHeader(Icons.info_outline, 'Basic Information', 'Core event details and classification'),
+                  _buildSectionHeader(
+                    Icons.info_outline,
+                    'Basic Information',
+                    'Core event details and classification',
+                  ),
                   const SizedBox(height: 12),
 
                   Container(
@@ -448,12 +450,16 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
                       children: [
                         TextFormField(
                           controller: _titleController,
-                          validator: (val) => val == null || val.trim().isEmpty
-                              ? 'Event title is required'
-                              : null,
+                          validator: (val) =>
+                              val == null || val.trim().isEmpty
+                                  ? 'Event title is required'
+                                  : null,
                           decoration: const InputDecoration(
                             labelText: 'Event Name / Title',
-                            prefixIcon: Icon(Icons.event_outlined, color: AppColors.sageDark),
+                            prefixIcon: Icon(
+                              Icons.event_outlined,
+                              color: AppColors.sageDark,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -462,15 +468,23 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
                           initialValue: _selectedCategory,
                           decoration: const InputDecoration(
                             labelText: 'Event Category',
-                            prefixIcon: Icon(Icons.category_outlined, color: AppColors.lavenderDark),
+                            prefixIcon: Icon(
+                              Icons.category_outlined,
+                              color: AppColors.lavenderDark,
+                            ),
                           ),
                           items: EventCategories.categories
                               .map(
-                                (cat) => DropdownMenuItem(value: cat, child: Text(cat)),
+                                (cat) => DropdownMenuItem(
+                                  value: cat,
+                                  child: Text(cat),
+                                ),
                               )
                               .toList(),
                           onChanged: (val) {
-                            if (val != null) setState(() => _selectedCategory = val);
+                            if (val != null) {
+                              setState(() => _selectedCategory = val);
+                            }
                           },
                         ),
                         const SizedBox(height: 16),
@@ -478,15 +492,19 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
                         TextFormField(
                           controller: _descriptionController,
                           maxLines: 3,
-                          validator: (val) => val == null || val.trim().isEmpty
-                              ? 'Description is required'
-                              : null,
+                          validator: (val) =>
+                              val == null || val.trim().isEmpty
+                                  ? 'Description is required'
+                                  : null,
                           decoration: const InputDecoration(
                             labelText: 'Event Description',
                             alignLabelWithHint: true,
                             prefixIcon: Padding(
                               padding: EdgeInsets.only(bottom: 40),
-                              child: Icon(Icons.description_outlined, color: AppColors.skyBlueDark),
+                              child: Icon(
+                                Icons.description_outlined,
+                                color: AppColors.skyBlueDark,
+                              ),
                             ),
                           ),
                         ),
@@ -497,7 +515,11 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
                   const SizedBox(height: 24),
 
                   // LOGISTICS & CAPACITY
-                  _buildSectionHeader(Icons.place_outlined, 'Location & Capacity', 'Venue, organizers, and ticketing setup'),
+                  _buildSectionHeader(
+                    Icons.place_outlined,
+                    'Location & Capacity',
+                    'Venue, organizers, and ticketing setup',
+                  ),
                   const SizedBox(height: 12),
 
                   Container(
@@ -514,12 +536,16 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
                             Expanded(
                               child: TextFormField(
                                 controller: _venueController,
-                                validator: (val) => val == null || val.trim().isEmpty
-                                    ? 'Venue is required'
-                                    : null,
+                                validator: (val) =>
+                                    val == null || val.trim().isEmpty
+                                        ? 'Venue is required'
+                                        : null,
                                 decoration: const InputDecoration(
                                   labelText: 'Venue / Hall',
-                                  prefixIcon: Icon(Icons.location_on_outlined, color: AppColors.peachDark),
+                                  prefixIcon: Icon(
+                                    Icons.location_on_outlined,
+                                    color: AppColors.peachDark,
+                                  ),
                                 ),
                               ),
                             ),
@@ -527,12 +553,16 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
                             Expanded(
                               child: TextFormField(
                                 controller: _organizerController,
-                                validator: (val) => val == null || val.trim().isEmpty
-                                    ? 'Organizer is required'
-                                    : null,
+                                validator: (val) =>
+                                    val == null || val.trim().isEmpty
+                                        ? 'Organizer is required'
+                                        : null,
                                 decoration: const InputDecoration(
                                   labelText: 'Organizer Club / Dept',
-                                  prefixIcon: Icon(Icons.groups_outlined, color: AppColors.pinkDark),
+                                  prefixIcon: Icon(
+                                    Icons.groups_outlined,
+                                    color: AppColors.pinkDark,
+                                  ),
                                 ),
                               ),
                             ),
@@ -558,7 +588,10 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
                                 },
                                 decoration: const InputDecoration(
                                   labelText: 'Capacity (Seats)',
-                                  prefixIcon: Icon(Icons.chair_outlined, color: AppColors.sageDark),
+                                  prefixIcon: Icon(
+                                    Icons.chair_outlined,
+                                    color: AppColors.sageDark,
+                                  ),
                                 ),
                               ),
                             ),
@@ -579,7 +612,10 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
                                 },
                                 decoration: const InputDecoration(
                                   labelText: 'Fee (₹ 0 = Free)',
-                                  prefixIcon: Icon(Icons.payments_outlined, color: AppColors.skyBlueDark),
+                                  prefixIcon: Icon(
+                                    Icons.payments_outlined,
+                                    color: AppColors.skyBlueDark,
+                                  ),
                                 ),
                               ),
                             ),
@@ -592,7 +628,11 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
                   const SizedBox(height: 24),
 
                   // SCHEDULE & STATUS
-                  _buildSectionHeader(Icons.schedule_outlined, 'Schedule & Status', 'Dates, times, and publication status'),
+                  _buildSectionHeader(
+                    Icons.schedule_outlined,
+                    'Schedule & Status',
+                    'Dates, times, and publication status',
+                  ),
                   const SizedBox(height: 12),
 
                   Container(
@@ -611,7 +651,10 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
                                 controller: _startTimeController,
                                 decoration: const InputDecoration(
                                   labelText: 'Start Time',
-                                  prefixIcon: Icon(Icons.access_time, color: AppColors.textSecondary),
+                                  prefixIcon: Icon(
+                                    Icons.access_time,
+                                    color: AppColors.textSecondary,
+                                  ),
                                 ),
                               ),
                             ),
@@ -621,7 +664,10 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
                                 controller: _endTimeController,
                                 decoration: const InputDecoration(
                                   labelText: 'End Time',
-                                  prefixIcon: Icon(Icons.access_time_filled, color: AppColors.textSecondary),
+                                  prefixIcon: Icon(
+                                    Icons.access_time_filled,
+                                    color: AppColors.textSecondary,
+                                  ),
                                 ),
                               ),
                             ),
@@ -638,11 +684,16 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
                                 child: InputDecorator(
                                   decoration: const InputDecoration(
                                     labelText: 'Event Date',
-                                    prefixIcon: Icon(Icons.calendar_today_outlined, color: AppColors.sageDark),
+                                    prefixIcon: Icon(
+                                      Icons.calendar_today_outlined,
+                                      color: AppColors.sageDark,
+                                    ),
                                   ),
                                   child: Text(
                                     DateFormatter.formatDate(_selectedDate),
-                                    style: const TextStyle(fontWeight: FontWeight.w600),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -655,11 +706,18 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
                                 child: InputDecorator(
                                   decoration: const InputDecoration(
                                     labelText: 'Deadline Date',
-                                    prefixIcon: Icon(Icons.event_available_outlined, color: AppColors.pinkDark),
+                                    prefixIcon: Icon(
+                                      Icons.event_available_outlined,
+                                      color: AppColors.pinkDark,
+                                    ),
                                   ),
                                   child: Text(
-                                    DateFormatter.formatDate(_selectedDeadline),
-                                    style: const TextStyle(fontWeight: FontWeight.w600),
+                                    DateFormatter.formatDate(
+                                      _selectedDeadline,
+                                    ),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -672,7 +730,10 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
                           initialValue: _selectedStatus,
                           decoration: const InputDecoration(
                             labelText: 'Event Status',
-                            prefixIcon: Icon(Icons.toggle_on_outlined, color: AppColors.lavenderDark),
+                            prefixIcon: Icon(
+                              Icons.toggle_on_outlined,
+                              color: AppColors.lavenderDark,
+                            ),
                           ),
                           items: const [
                             DropdownMenuItem(
@@ -693,7 +754,9 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
                             ),
                           ],
                           onChanged: (val) {
-                            if (val != null) setState(() => _selectedStatus = val);
+                            if (val != null) {
+                              setState(() => _selectedStatus = val);
+                            }
                           },
                         ),
                       ],
@@ -717,10 +780,10 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
                         elevation: 0,
                       ),
                       child: _isLoading
-                          ? Row(
+                          ? const Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const SizedBox(
+                                SizedBox(
                                   height: 20,
                                   width: 20,
                                   child: CircularProgressIndicator(
@@ -728,12 +791,10 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
                                     strokeWidth: 2,
                                   ),
                                 ),
-                                const SizedBox(width: 12),
+                                SizedBox(width: 12),
                                 Text(
-                                  _isUploadingPoster
-                                      ? 'Uploading Poster...'
-                                      : 'Saving Event...',
-                                  style: const TextStyle(
+                                  'Saving Event...',
+                                  style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     color: Colors.white,
                                   ),
@@ -760,30 +821,39 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
     );
   }
 
-  Widget _buildPosterPlaceholder() {
+  Widget _buildCategoryThemePlaceholder(
+    Color catColor,
+    Color catDarkColor,
+    IconData catIcon,
+  ) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: AppColors.cardWhite,
+            color: Colors.white.withValues(alpha: 0.9),
             shape: BoxShape.circle,
-            border: Border.all(color: AppColors.pastelSkyBlue),
+            border: Border.all(color: catColor),
           ),
-          child: const Icon(
-            Icons.add_photo_alternate_outlined,
-            size: 36,
-            color: AppColors.skyBlueDark,
-          ),
+          child: Icon(catIcon, size: 36, color: catDarkColor),
         ),
         const SizedBox(height: 10),
-        const Text(
-          'Select or paste event poster image',
+        Text(
+          '$_selectedCategory Event Theme',
           style: TextStyle(
-            color: AppColors.skyBlueDark,
-            fontWeight: FontWeight.w600,
-            fontSize: 13,
+            color: catDarkColor,
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+            letterSpacing: 0.3,
+          ),
+        ),
+        const SizedBox(height: 2),
+        const Text(
+          'Auto-styled with pastel accents',
+          style: TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 12,
           ),
         ),
       ],

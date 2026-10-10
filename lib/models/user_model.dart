@@ -10,6 +10,9 @@ class UserModel {
   final String department;
   final String year;
   final String role;
+  final String whatsappNumber;
+  final bool whatsappConsent;
+  final DateTime? whatsappConsentAt;
   final DateTime createdAt;
 
   UserModel({
@@ -20,6 +23,9 @@ class UserModel {
     required this.department,
     required this.year,
     this.role = UserRoles.student,
+    this.whatsappNumber = '',
+    this.whatsappConsent = false,
+    this.whatsappConsentAt,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
@@ -38,6 +44,11 @@ class UserModel {
       department: map['department'] as String? ?? '',
       year: map['year'] as String? ?? '',
       role: map['role'] as String? ?? UserRoles.student,
+      whatsappNumber: map['whatsappNumber'] as String? ?? map['phone'] as String? ?? '',
+      whatsappConsent: map['whatsappConsent'] as bool? ?? false,
+      whatsappConsentAt: map['whatsappConsentAt'] != null
+          ? DateFormatter.parseDateTime(map['whatsappConsentAt'])
+          : null,
       createdAt: DateFormatter.parseDateTime(map['createdAt']),
     );
   }
@@ -55,6 +66,11 @@ class UserModel {
       'department': department,
       'year': year,
       'role': role,
+      'whatsappNumber': whatsappNumber,
+      'whatsappConsent': whatsappConsent,
+      'whatsappConsentAt': whatsappConsentAt != null
+          ? Timestamp.fromDate(whatsappConsentAt!)
+          : null,
       'createdAt': Timestamp.fromDate(createdAt),
     };
   }
@@ -67,6 +83,9 @@ class UserModel {
     String? department,
     String? year,
     String? role,
+    String? whatsappNumber,
+    bool? whatsappConsent,
+    DateTime? whatsappConsentAt,
     DateTime? createdAt,
   }) {
     return UserModel(
@@ -77,6 +96,9 @@ class UserModel {
       department: department ?? this.department,
       year: year ?? this.year,
       role: role ?? this.role,
+      whatsappNumber: whatsappNumber ?? this.whatsappNumber,
+      whatsappConsent: whatsappConsent ?? this.whatsappConsent,
+      whatsappConsentAt: whatsappConsentAt ?? this.whatsappConsentAt,
       createdAt: createdAt ?? this.createdAt,
     );
   }

@@ -122,6 +122,16 @@ class CollegeEventApp extends StatelessWidget {
             ),
           ),
         ),
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(
+            foregroundColor: AppColors.coral,
+            textStyle: const TextStyle(
+              inherit: true,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
       ),
       home: const AuthWrapper(),
     );

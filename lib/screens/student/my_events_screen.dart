@@ -415,21 +415,55 @@ class _MyEventsScreenState extends State<MyEventsScreen>
                         label: Text('Event Info', style: TextStyle(color: AppColors.sageDark)),
                       ),
 
-                    if (event != null && !reg.isCancelled)
+                    if (!reg.isCancelled)
                       TextButton.icon(
                         onPressed: () {
+                          final targetEvent = event ??
+                              EventModel(
+                                id: reg.eventId,
+                                title: reg.eventTitle.isNotEmpty
+                                    ? reg.eventTitle
+                                    : 'College Event',
+                                description: '',
+                                category: 'General',
+                                posterUrl: '',
+                                date: reg.registeredAt,
+                                startTime: '10:00 AM',
+                                endTime: '4:00 PM',
+                                venue: reg.venue.isNotEmpty
+                                    ? reg.venue
+                                    : 'Campus',
+                                maxSeats: 100,
+                                availableSeats: 99,
+                                registrationFee: reg.amount,
+                                registrationDeadline: reg.registeredAt,
+                                organizer: 'College Department',
+                                createdBy: 'Admin',
+                                createdAt: reg.registeredAt,
+                              );
+
                           Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (_) => RegistrationConfirmationScreen(
-                                event: event,
+                                event: targetEvent,
                                 registration: reg,
                               ),
                             ),
                           );
                         },
-                        icon: Icon(Icons.receipt_long_outlined, size: 16, color: AppColors.sageDark),
-                        label: Text('View Ticket', style: TextStyle(color: AppColors.sageDark)),
+                        icon: const Icon(
+                          Icons.confirmation_number_outlined,
+                          size: 16,
+                          color: AppColors.coral,
+                        ),
+                        label: const Text(
+                          'Ticket & Pass',
+                          style: TextStyle(
+                            color: AppColors.coral,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
 
                     if (isUpcoming && !reg.isCancelled)

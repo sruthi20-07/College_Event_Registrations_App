@@ -24,6 +24,24 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final EventService _eventService = EventService();
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  String _selectedCategory = 'All';
+
+  final List<String> _categories = const [
+    'All',
+    'Technical',
+    'Workshop',
+    'Cultural',
+    'Sports',
+    'Hackathon',
+  ];
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -139,18 +157,6 @@ class _HomeScreenState extends State<HomeScreen> {
                             );
                           },
                         ),
-                        const SizedBox(width: 8),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: AppColors.cardWhite,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: AppColors.border),
-                          ),
-                          child: IconButton(
-                            icon: const Icon(Icons.notifications_none, color: AppColors.textMain),
-                            onPressed: () {},
-                          ),
-                        ),
                       ],
                     ),
                   ],
@@ -158,19 +164,28 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 const SizedBox(height: 18),
 
-                // SEARCH BAR
+                // SEARCH BAR (Functional, with clear button, filter icon removed)
                 TextField(
+                  controller: _searchController,
+                  onChanged: (val) {
+                    setState(() {
+                      _searchQuery = val.trim().toLowerCase();
+                    });
+                  },
                   decoration: InputDecoration(
                     hintText: 'Search events, workshops, fests...',
                     prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
-                    suffixIcon: Container(
-                      margin: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppColors.coralLight,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(Icons.tune, color: AppColors.coral, size: 20),
-                    ),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, color: AppColors.textSecondary, size: 20),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() {
+                                _searchQuery = '';
+                              });
+                            },
+                          )
+                        : null,
                   ),
                 ),
 
@@ -179,138 +194,275 @@ class _HomeScreenState extends State<HomeScreen> {
                 // CATEGORIES
                 SizedBox(
                   height: 42,
-                  child: ListView(
+                  child: ListView.builder(
                     scrollDirection: Axis.horizontal,
-                    children: const [
-                      CategoryChip(label: 'All', isSelected: true),
-                      CategoryChip(label: 'Technical'),
-                      CategoryChip(label: 'Workshop'),
-                      CategoryChip(label: 'Cultural'),
-                      CategoryChip(label: 'Sports'),
-                      CategoryChip(label: 'Hackathon'),
-                    ],
+                    itemCount: _categories.length,
+                    itemBuilder: (context, index) {
+                      final category = _categories[index];
+                      final isSelected = _selectedCategory == category;
+                      return CategoryChip(
+                        label: category,
+                        isSelected: isSelected,
+                        onTap: () {
+                          setState(() {
+                            _selectedCategory = category;
+                          });
+                        },
+                      );
+                    },
                   ),
                 ),
 
                 const SizedBox(height: 22),
 
-                // FEATURED SECTION
-                const Text(
-                  'Featured Event',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textMain,
-                    letterSpacing: -0.3,
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
+                // EVENTS CONTENT STREAM (COMBINED SEARCH & CATEGORY)
                 StreamBuilder<List<EventModel>>(
                   stream: _eventService.streamEvents(),
                   builder: (context, snapshot) {
-                    final displayEvents =
+                    final allEvents =
                         (snapshot.hasData && snapshot.data!.isNotEmpty)
-                        ? snapshot.data!
-                        : mock_data.events;
+                            ? snapshot.data!
+                            : mock_data.events;
 
-                    if (displayEvents.isEmpty) {
-                      return const SizedBox.shrink();
-                    }
+                    // Filter by category and search query
+                    final filteredEvents = allEvents.where((event) {
+                      final matchesCategory = _selectedCategory == 'All' ||
+                          event.category.toLowerCase() ==
+                              _selectedCategory.toLowerCase();
+                      final matchesSearch = _searchQuery.isEmpty ||
+                          event.title.toLowerCase().contains(_searchQuery) ||
+                          event.category.toLowerCase().contains(_searchQuery) ||
+                          event.description.toLowerCase().contains(_searchQuery) ||
+                          event.venue.toLowerCase().contains(_searchQuery) ||
+                          event.organizer.toLowerCase().contains(_searchQuery);
+                      return matchesCategory && matchesSearch;
+                    }).toList();
 
-                    final featuredEvent = displayEvents.first;
+                    final isFiltering =
+                        _searchQuery.isNotEmpty || _selectedCategory != 'All';
 
-                    return FeaturedEventCard(
-                      event: featuredEvent,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                EventDetailsScreen(event: featuredEvent),
+                    if (isFiltering) {
+                      // FILTERED / SEARCH RESULTS VIEW
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  _searchQuery.isNotEmpty
+                                      ? 'Search Results (${filteredEvents.length})'
+                                      : '$_selectedCategory Events (${filteredEvents.length})',
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    inherit: true,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.textMain,
+                                    letterSpacing: -0.3,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              if (isFiltering)
+                                TextButton(
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() {
+                                      _searchQuery = '';
+                                      _selectedCategory = 'All';
+                                    });
+                                  },
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: AppColors.coral,
+                                    textStyle: const TextStyle(
+                                      inherit: true,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    'Reset Filters',
+                                    style: TextStyle(inherit: true),
+                                  ),
+                                ),
+                            ],
                           ),
-                        );
-                      },
-                    );
-                  },
-                ),
-
-                const SizedBox(height: 24),
-
-                // UPCOMING EVENTS HEADER
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Upcoming Events',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textMain,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const EventsScreen()),
-                        );
-                      },
-                      style: TextButton.styleFrom(
-                        foregroundColor: AppColors.coral,
-                        textStyle: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      child: const Text('See All'),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 10),
-
-                StreamBuilder<List<EventModel>>(
-                  stream: _eventService.streamEvents(),
-                  builder: (context, snapshot) {
-                    final displayEvents =
-                        (snapshot.hasData && snapshot.data!.isNotEmpty)
-                        ? snapshot.data!
-                        : mock_data.events;
-
-                    final upcomingList = displayEvents.length > 1
-                        ? displayEvents.skip(1).toList()
-                        : displayEvents;
-
-                    if (upcomingList.isEmpty) {
-                      return const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 20),
-                        child: Center(
-                          child: Text(
-                            'No upcoming events at the moment.',
-                            style: TextStyle(color: AppColors.textSecondary),
-                          ),
-                        ),
+                          const SizedBox(height: 12),
+                          if (filteredEvents.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 36),
+                              child: Center(
+                                child: Column(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(18),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.lavenderLight,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.event_busy_rounded,
+                                        size: 40,
+                                        color: AppColors.lavenderDark,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 14),
+                                    const Text(
+                                      'No matching events found',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.textMain,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    const Text(
+                                      'Try a different keyword or category.',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
+                          else
+                            ListView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: filteredEvents.length,
+                              itemBuilder: (context, index) {
+                                final item = filteredEvents[index];
+                                return EventCard(
+                                  event: item,
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            EventDetailsScreen(event: item),
+                                      ),
+                                    );
+                                  },
+                                );
+                              },
+                            ),
+                        ],
                       );
                     }
 
-                    return ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: upcomingList.length,
-                      itemBuilder: (context, index) {
-                        final item = upcomingList[index];
-                        return EventCard(
-                          event: item,
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => EventDetailsScreen(event: item),
+                    // STANDARD HOME VIEW (Featured + Upcoming)
+                    final featuredEvent =
+                        allEvents.isNotEmpty ? allEvents.first : null;
+                    final upcomingList = allEvents.length > 1
+                        ? allEvents.skip(1).toList()
+                        : allEvents;
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (featuredEvent != null) ...[
+                          const Text(
+                            'Featured Event',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textMain,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          FeaturedEventCard(
+                            event: featuredEvent,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      EventDetailsScreen(event: featuredEvent),
+                                ),
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 24),
+                        ],
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'Upcoming Events',
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  inherit: true,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textMain,
+                                  letterSpacing: -0.3,
+                                ),
                               ),
-                            );
-                          },
-                        );
-                      },
+                            ),
+                            const SizedBox(width: 8),
+                            TextButton(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const EventsScreen(),
+                                  ),
+                                );
+                              },
+                              style: TextButton.styleFrom(
+                                foregroundColor: AppColors.coral,
+                                textStyle: const TextStyle(
+                                  inherit: true,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              child: const Text(
+                                'See All',
+                                style: TextStyle(inherit: true),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        if (upcomingList.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 20),
+                            child: Center(
+                              child: Text(
+                                'No upcoming events at the moment.',
+                                style: TextStyle(color: AppColors.textSecondary),
+                              ),
+                            ),
+                          )
+                        else
+                          ListView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: upcomingList.length,
+                            itemBuilder: (context, index) {
+                              final item = upcomingList[index];
+                              return EventCard(
+                                event: item,
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          EventDetailsScreen(event: item),
+                                    ),
+                                  );
+                                },
+                              );
+                            },
+                          ),
+                      ],
                     );
                   },
                 ),

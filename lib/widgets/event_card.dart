@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/event_model.dart';
+import '../services/auth_service.dart';
+import '../services/registration_service.dart';
 import '../services/storage_service.dart';
 import '../screens/student/event_details_screen.dart';
 import '../utils/constants.dart';
@@ -16,6 +18,8 @@ class EventCard extends StatefulWidget {
 
 class _EventCardState extends State<EventCard> {
   bool isSaved = false;
+  final RegistrationService _registrationService = RegistrationService();
+  final AuthService _authService = AuthService();
 
   @override
   void initState() {
@@ -24,19 +28,37 @@ class _EventCardState extends State<EventCard> {
   }
 
   Future<void> loadSavedStatus() async {
-    final result = await StorageService.isSaved(widget.event.id);
+    final localResult = await StorageService.isSaved(widget.event.id);
     if (mounted) {
       setState(() {
-        isSaved = result;
+        isSaved = localResult;
       });
     }
   }
 
   Future<void> toggleSave() async {
-    await StorageService.toggleSavedEvent(widget.event.id);
+    final currentSaved = isSaved;
+    final nextSaved = !currentSaved;
+
+    // Optimistic UI update
     setState(() {
-      isSaved = !isSaved;
+      isSaved = nextSaved;
     });
+
+    try {
+      await StorageService.toggleSavedEvent(widget.event.id);
+      final uid = _authService.currentUid;
+      if (uid != null && uid.isNotEmpty) {
+        await _registrationService.toggleSaveEvent(uid, widget.event.id);
+      }
+    } catch (e) {
+      // Revert if error
+      if (mounted) {
+        setState(() {
+          isSaved = currentSaved;
+        });
+      }
+    }
   }
 
   Color _getCategoryColor(String category) {
@@ -216,13 +238,14 @@ class _EventCardState extends State<EventCard> {
                     ],
                   ),
                 ),
-                // FAVORITE ICON
+                // BOOKMARK / SAVED ICON
                 IconButton(
                   onPressed: toggleSave,
+                  tooltip: isSaved ? 'Remove from Saved' : 'Save Event',
                   icon: Icon(
-                    isSaved ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                    color: isSaved ? AppColors.pinkDark : AppColors.textSecondary,
-                    size: 22,
+                    isSaved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+                    color: isSaved ? AppColors.coral : AppColors.textSecondary,
+                    size: 24,
                   ),
                 ),
               ],

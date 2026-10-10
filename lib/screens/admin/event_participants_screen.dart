@@ -1305,6 +1305,70 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
                       ),
                     ),
 
+                    const SizedBox(height: 16),
+
+                    // SECTION 5: WHATSAPP CONFIRMATION & TICKET NOTIFICATION
+                    const Text(
+                      'WhatsApp Confirmation & Ticket',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.sageDark,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _modalRow(
+                      'Consent Status',
+                      reg.whatsappConsent
+                          ? 'AGREED / CONSENTED ✓'
+                          : 'NOT CONSENTED',
+                      valueColor: reg.whatsappConsent
+                          ? AppColors.sageDark
+                          : AppColors.peachDark,
+                    ),
+                    _modalRow(
+                      'WhatsApp Number',
+                      reg.whatsappNumber.isNotEmpty
+                          ? reg.whatsappNumber
+                          : (reg.phone.isNotEmpty
+                              ? reg.phone
+                              : 'Not provided'),
+                    ),
+                    _modalRow(
+                      'Delivery Mode',
+                      reg.whatsappDeliveryMode.isNotEmpty
+                          ? (reg.whatsappDeliveryMode == 'manual'
+                              ? 'Mode A: Quick Share'
+                              : 'Mode B: Cloud API')
+                          : 'Not initiated',
+                    ),
+                    _modalRow(
+                      'Notification Status',
+                      reg.whatsappStatus.isNotEmpty
+                          ? reg.whatsappStatus
+                              .replaceAll('_', ' ')
+                              .toUpperCase()
+                          : 'NONE',
+                      valueColor: reg.whatsappStatus == 'delivered' ||
+                              reg.whatsappStatus == 'accepted' ||
+                              reg.whatsappStatus == 'ready_to_share'
+                          ? AppColors.sageDark
+                          : (reg.whatsappStatus == 'failed'
+                              ? AppColors.pinkDark
+                              : AppColors.lavenderDark),
+                    ),
+                    if (reg.whatsappSentAt != null)
+                      _modalRow(
+                        'Last Attempt At',
+                        DateFormatter.formatDate(reg.whatsappSentAt!),
+                      ),
+                    if (reg.whatsappError.isNotEmpty)
+                      _modalRow(
+                        'Last Diagnostic Note',
+                        reg.whatsappError,
+                        valueColor: AppColors.pinkDark,
+                      ),
+
                     const SizedBox(height: 20),
                   ],
                 ),

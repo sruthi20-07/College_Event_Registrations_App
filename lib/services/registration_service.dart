@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import '../models/attendance_scan_result.dart';
+import '../models/gamification_model.dart';
 import '../models/registration_model.dart';
 import '../utils/constants.dart';
 import 'gamification_service.dart';
@@ -337,27 +338,99 @@ class RegistrationService {
     }
   }
 
+  /// Updates WhatsApp notification fields for a registration
+  Future<void> updateWhatsAppStatus({
+    required String registrationId,
+    required String whatsappNumber,
+    required bool whatsappConsent,
+    required String whatsappStatus,
+    String whatsappDeliveryMode = 'manual',
+    String? whatsappMessageId,
+    String? whatsappError,
+  }) async {
+    try {
+      final docRef = _registrationsCollection.doc(registrationId);
+      final Map<String, dynamic> updateData = {
+        'whatsappNumber': whatsappNumber,
+        'whatsappConsent': whatsappConsent,
+        'whatsappConsentAt': whatsappConsent ? Timestamp.now() : null,
+        'whatsappStatus': whatsappStatus,
+        'whatsappDeliveryMode': whatsappDeliveryMode,
+        'whatsappSentAt': Timestamp.now(),
+      };
+      if (whatsappMessageId != null) {
+        updateData['whatsappMessageId'] = whatsappMessageId;
+      }
+      if (whatsappError != null) {
+        updateData['whatsappError'] = whatsappError;
+      }
+
+      await docRef.set(updateData, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('Error updating WhatsApp registration status: $e');
+    }
+  }
+
   /// Updates attendance status for a participant in Firestore
   Future<void> updateAttendance(String registrationId, bool attended) async {
     try {
       final now = DateTime.now();
       final adminUid = FirebaseAuth.instance.currentUser?.uid ?? '';
-      final regDoc = await _registrationsCollection.doc(registrationId).get();
-      if (!regDoc.exists) return;
-      final reg = RegistrationModel.fromSnapshot(regDoc);
+      final regRef = _registrationsCollection.doc(registrationId);
 
       if (attended) {
         await _db.runTransaction((transaction) async {
-          transaction.update(_registrationsCollection.doc(registrationId), {
+          // --- READ PHASE: ALL READS FIRST ---
+          final regDoc = await transaction.get(regRef);
+          if (!regDoc.exists) {
+            throw Exception('Registration record not found.');
+          }
+          final reg = RegistrationModel.fromSnapshot(regDoc);
+
+          if (reg.isAttended) {
+            return; // Already marked attended
+          }
+
+          final String idempotencyRewardId = '${reg.studentId}_${reg.eventId}';
+          final rewardRef = _db
+              .collection('reward_history')
+              .doc(idempotencyRewardId);
+          final rewardDoc = await transaction.get(rewardRef);
+
+          final gamificationRef = _db
+              .collection('gamification')
+              .doc(reg.studentId);
+          final gamificationDoc = await transaction.get(gamificationRef);
+
+          // --- VALIDATE & COMPUTE PHASE ---
+          final bool shouldAwardReward =
+              !rewardDoc.exists && reg.studentId.isNotEmpty;
+          final currentGamification = gamificationDoc.exists
+              ? GamificationModel.fromSnapshot(gamificationDoc)
+              : GamificationModel(studentId: reg.studentId);
+
+          final rewardCalculation = shouldAwardReward
+              ? GamificationService.computeReward(
+                  currentGamification: currentGamification,
+                  studentId: reg.studentId,
+                  eventId: reg.eventId,
+                  eventTitle: reg.eventTitle,
+                  attendedAt: now,
+                )
+              : null;
+
+          final attendanceRef = _attendanceCollection.doc(
+            '${reg.eventId}_${reg.id}',
+          );
+
+          // --- WRITE PHASE: ALL WRITES AFTER ALL READS ---
+          transaction.update(regRef, {
             'attended': true,
             'attendanceStatus': 'attended',
             'attendedAt': Timestamp.fromDate(now),
             'verifiedByAdminUid': adminUid,
           });
 
-          final attendanceRef = _attendanceCollection.doc(
-            '${reg.eventId}_${reg.id}',
-          );
           transaction.set(attendanceRef, {
             'eventId': reg.eventId,
             'eventTitle': reg.eventTitle,
@@ -375,26 +448,41 @@ class RegistrationService {
             'verifiedByAdminUid': adminUid,
           }, SetOptions(merge: true));
 
-          await GamificationService.processAttendanceRewardInTransaction(
-            transaction,
-            studentId: reg.studentId,
-            eventId: reg.eventId,
-            eventTitle: reg.eventTitle,
-            attendedAt: now,
-            firestore: _db,
-          );
+          if (rewardCalculation != null) {
+            transaction.set(
+              gamificationRef,
+              rewardCalculation.updatedGamification.toMap(),
+              SetOptions(merge: true),
+            );
+            transaction.set(
+              rewardRef,
+              rewardCalculation.rewardRecord.toMap(),
+            );
+          }
         });
       } else {
-        await _registrationsCollection.doc(registrationId).update({
-          'attended': false,
-          'attendanceStatus': 'not_attended',
-          'attendedAt': null,
-          'verifiedByAdminUid': '',
+        await _db.runTransaction((transaction) async {
+          // --- READ PHASE ---
+          final regDoc = await transaction.get(regRef);
+          if (!regDoc.exists) return;
+          final reg = RegistrationModel.fromSnapshot(regDoc);
+          final attendanceRef = _attendanceCollection.doc(
+            '${reg.eventId}_${reg.id}',
+          );
+          final attDoc = await transaction.get(attendanceRef);
+
+          // --- WRITE PHASE ---
+          transaction.update(regRef, {
+            'attended': false,
+            'attendanceStatus': 'not_attended',
+            'attendedAt': null,
+            'verifiedByAdminUid': '',
+          });
+
+          if (attDoc.exists) {
+            transaction.delete(attendanceRef);
+          }
         });
-        final attendanceRef = _attendanceCollection.doc(
-          '${reg.eventId}_${reg.id}',
-        );
-        await attendanceRef.delete();
       }
     } catch (e) {
       debugPrint('Error updating attendance: $e');
@@ -616,6 +704,7 @@ class RegistrationService {
       // 7. Atomic attendance record via Firestore Transaction
       final DateTime now = DateTime.now();
       await _db.runTransaction((transaction) async {
+        // --- READ PHASE: ALL READS FIRST ---
         final freshSnapshot = await transaction.get(resolvedDoc.reference);
         if (!freshSnapshot.exists) {
           throw Exception(
@@ -629,7 +718,40 @@ class RegistrationService {
           throw Exception('ALREADY_CHECKED_IN');
         }
 
-        // Update registration record atomically
+        final String idempotencyRewardId =
+            '${currentReg.studentId}_${currentReg.eventId}';
+        final rewardRef = _db
+            .collection('reward_history')
+            .doc(idempotencyRewardId);
+        final rewardDoc = await transaction.get(rewardRef);
+
+        final gamificationRef = _db
+            .collection('gamification')
+            .doc(currentReg.studentId);
+        final gamificationDoc = await transaction.get(gamificationRef);
+
+        // --- COMPUTE & VALIDATE PHASE ---
+        final bool shouldAwardReward =
+            !rewardDoc.exists && currentReg.studentId.isNotEmpty;
+        final currentGamification = gamificationDoc.exists
+            ? GamificationModel.fromSnapshot(gamificationDoc)
+            : GamificationModel(studentId: currentReg.studentId);
+
+        final rewardCalculation = shouldAwardReward
+            ? GamificationService.computeReward(
+                currentGamification: currentGamification,
+                studentId: currentReg.studentId,
+                eventId: currentReg.eventId,
+                eventTitle: currentReg.eventTitle,
+                attendedAt: now,
+              )
+            : null;
+
+        final attendanceRef = _attendanceCollection.doc(
+          '${currentReg.eventId}_${currentReg.id}',
+        );
+
+        // --- WRITE PHASE: ONLY WRITES AFTER ALL READS ---
         transaction.update(resolvedDoc.reference, {
           'attended': true,
           'attendanceStatus': 'attended',
@@ -639,10 +761,6 @@ class RegistrationService {
           if (currentReg.ticketToken.isEmpty) 'ticketToken': cleanToken,
         });
 
-        // Write deterministic attendance record in attendance collection
-        final attendanceRef = _attendanceCollection.doc(
-          '${currentReg.eventId}_${currentReg.id}',
-        );
         transaction.set(attendanceRef, {
           'eventId': currentReg.eventId,
           'eventTitle': currentReg.eventTitle,
@@ -663,15 +781,17 @@ class RegistrationService {
           'verifiedByAdminEmail': currentUser.email ?? '',
         }, SetOptions(merge: true));
 
-        // Atomically award gamification coins, streak, and badges
-        await GamificationService.processAttendanceRewardInTransaction(
-          transaction,
-          studentId: currentReg.studentId,
-          eventId: currentReg.eventId,
-          eventTitle: currentReg.eventTitle,
-          attendedAt: now,
-          firestore: _db,
-        );
+        if (rewardCalculation != null) {
+          transaction.set(
+            gamificationRef,
+            rewardCalculation.updatedGamification.toMap(),
+            SetOptions(merge: true),
+          );
+          transaction.set(
+            rewardRef,
+            rewardCalculation.rewardRecord.toMap(),
+          );
+        }
       });
 
       final updatedReg = currentReg.copyWith(

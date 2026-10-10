@@ -1,34 +1,12 @@
-import 'package:flutter/foundation.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// Service for local device storage (saved/bookmarked events and prototype preferences).
+/// Firebase Storage poster uploading has been completely removed to operate on Firebase Spark free plan.
 class StorageService {
   static const String registeredKey = 'registered_events';
   static const String savedKey = 'saved_events';
 
-  final FirebaseStorage _storage = FirebaseStorage.instance;
-
-  /// Uploads event poster bytes to Firebase Storage and returns download URL.
-  /// Works reliably on Flutter Web and Mobile platforms using putData().
-  Future<String> uploadEventPosterBytes(
-    Uint8List imageBytes,
-    String eventId, {
-    String contentType = 'image/jpeg',
-  }) async {
-    try {
-      final fileName =
-          '${eventId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final ref = _storage.ref().child('event_posters').child(fileName);
-      final metadata = SettableMetadata(contentType: contentType);
-      final uploadTask = await ref.putData(imageBytes, metadata);
-      return await uploadTask.ref.getDownloadURL();
-    } catch (e) {
-      debugPrint('Error uploading poster bytes to Firebase Storage: $e');
-      rethrow;
-    }
-  }
-
-  // --- Local SharedPreferences legacy methods for prototype compatibility ---
+  // --- Local SharedPreferences methods for prototype compatibility ---
   static Future<List<String>> getRegisteredEvents() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getStringList(registeredKey) ?? [];

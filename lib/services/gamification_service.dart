@@ -74,45 +74,17 @@ class GamificationService {
         });
   }
 
-  /// Evaluates streaks, badges, and coin rewards inside an ongoing Firestore Transaction
-  static Future<void> processAttendanceRewardInTransaction(
-    Transaction transaction, {
+  /// Computes updated gamification profile and reward record from existing state
+  static ({GamificationModel updatedGamification, RewardHistoryModel rewardRecord}) computeReward({
+    required GamificationModel currentGamification,
     required String studentId,
     required String eventId,
     required String eventTitle,
     required DateTime attendedAt,
-    required FirebaseFirestore firestore,
-  }) async {
-    if (studentId.isEmpty || eventId.isEmpty) return;
-
+  }) {
     final String idempotencyRewardId = '${studentId}_$eventId';
-    final DocumentReference<Map<String, dynamic>> rewardRef = firestore
-        .collection('reward_history')
-        .doc(idempotencyRewardId);
 
-    // 1. Check if reward history document already exists (idempotency guarantee)
-    final rewardDoc = await transaction.get(rewardRef);
-    if (rewardDoc.exists) {
-      debugPrint(
-        'Gamification reward already processed for $idempotencyRewardId',
-      );
-      return;
-    }
-
-    final DocumentReference<Map<String, dynamic>> gamificationRef = firestore
-        .collection('gamification')
-        .doc(studentId);
-
-    final gamificationDoc = await transaction.get(gamificationRef);
-
-    GamificationModel currentGamification;
-    if (gamificationDoc.exists) {
-      currentGamification = GamificationModel.fromSnapshot(gamificationDoc);
-    } else {
-      currentGamification = GamificationModel(studentId: studentId);
-    }
-
-    // 2. Compute calendar date and consecutive-day streak
+    // 1. Compute calendar date and consecutive-day streak
     final String todayDateKey = getCalendarDateKey(attendedAt);
     int newStreak = currentGamification.currentStreak;
     int newLongest = currentGamification.longestStreak;
@@ -144,21 +116,19 @@ class GamificationService {
         // Gap of more than 1 day -> start a new streak of 1
         newStreak = 1;
       }
-      // If diffDays < 0 (clock anomaly), keep current streak
     }
 
     distinctDates.add(todayDateKey);
 
-    // 3. Increment total verified events attended and coins
+    // 2. Increment total verified events attended and coins (+50 coins per verified attendance)
     final int newTotalEvents = currentGamification.totalEventsAttended + 1;
     final int newCoins = currentGamification.coins + 50;
 
-    // 4. Evaluate badges and unlock newly achieved milestones
+    // 3. Evaluate badges and unlock newly achieved milestones
     final Map<String, DateTime> updatedBadges = Map<String, DateTime>.from(
       currentGamification.unlockedBadges,
     );
 
-    // Badges definitions:
     // 1. First Step: 1 event
     if (newTotalEvents >= 1 && !updatedBadges.containsKey('first_step')) {
       updatedBadges['first_step'] = attendedAt;
@@ -194,14 +164,6 @@ class GamificationService {
       updatedAt: attendedAt,
     );
 
-    // 5. Write updated gamification profile
-    transaction.set(
-      gamificationRef,
-      updatedGamification.toMap(),
-      SetOptions(merge: true),
-    );
-
-    // 6. Write reward history record
     final rewardRecord = RewardHistoryModel(
       id: idempotencyRewardId,
       studentId: studentId,
@@ -213,6 +175,62 @@ class GamificationService {
       createdAt: attendedAt,
     );
 
-    transaction.set(rewardRef, rewardRecord.toMap());
+    return (updatedGamification: updatedGamification, rewardRecord: rewardRecord);
+  }
+
+  /// Evaluates streaks, badges, and coin rewards inside an ongoing Firestore Transaction.
+  /// NOTE: If caller performs other writes in the transaction, this method must NOT be used
+  /// after writes. Instead, perform reads during the transaction read phase.
+  static Future<void> processAttendanceRewardInTransaction(
+    Transaction transaction, {
+    required String studentId,
+    required String eventId,
+    required String eventTitle,
+    required DateTime attendedAt,
+    required FirebaseFirestore firestore,
+  }) async {
+    if (studentId.isEmpty || eventId.isEmpty) return;
+
+    final String idempotencyRewardId = '${studentId}_$eventId';
+    final DocumentReference<Map<String, dynamic>> rewardRef = firestore
+        .collection('reward_history')
+        .doc(idempotencyRewardId);
+
+    // READ 1: Check if reward history document already exists (idempotency guarantee)
+    final rewardDoc = await transaction.get(rewardRef);
+    if (rewardDoc.exists) {
+      debugPrint(
+        'Gamification reward already processed for $idempotencyRewardId',
+      );
+      return;
+    }
+
+    // READ 2: Get current gamification profile
+    final DocumentReference<Map<String, dynamic>> gamificationRef = firestore
+        .collection('gamification')
+        .doc(studentId);
+    final gamificationDoc = await transaction.get(gamificationRef);
+
+    final GamificationModel currentGamification = gamificationDoc.exists
+        ? GamificationModel.fromSnapshot(gamificationDoc)
+        : GamificationModel(studentId: studentId);
+
+    // COMPUTE
+    final result = computeReward(
+      currentGamification: currentGamification,
+      studentId: studentId,
+      eventId: eventId,
+      eventTitle: eventTitle,
+      attendedAt: attendedAt,
+    );
+
+    // WRITES
+    transaction.set(
+      gamificationRef,
+      result.updatedGamification.toMap(),
+      SetOptions(merge: true),
+    );
+
+    transaction.set(rewardRef, result.rewardRecord.toMap());
   }
 }

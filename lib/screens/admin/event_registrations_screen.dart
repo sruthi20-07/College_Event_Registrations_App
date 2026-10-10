@@ -474,6 +474,16 @@ class _EventRegistrationsScreenState extends State<EventRegistrationsScreen> {
                 'Registered Date',
                 DateFormatter.formatDate(reg.registeredAt),
               ),
+              const Divider(color: AppColors.border),
+              const SizedBox(height: 6),
+              _detailRow(
+                'WhatsApp Consent',
+                reg.whatsappConsent ? 'Consented ✓' : 'No Consent',
+              ),
+              if (reg.whatsappNumber.isNotEmpty)
+                _detailRow('WhatsApp No', reg.whatsappNumber),
+              if (reg.whatsappStatus.isNotEmpty)
+                _detailRow('WhatsApp Status', reg.whatsappStatus.toUpperCase()),
               const SizedBox(height: 20),
             ],
           ),
