@@ -1,0 +1,20 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Event posters directory
+    match /event_posters/{allPaths=**} {
+      // Anyone can view event poster images
+      allow read: if true;
+      // Only authenticated users/admins can upload event posters
+      allow write: if request.auth != null;
+    }
+
+    // Default fallback
+    match /{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+  }
+}

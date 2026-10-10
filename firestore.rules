@@ -1,0 +1,105 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.email == 'admin@collegeevent.com' ||
+        request.auth.token.email == 'admin@college.edu' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'faculty', 'coordinator'])
+      );
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Events collection
+    match /events/{eventId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Registrations collection
+    match /registrations/{registrationId} {
+      allow read: if isAdmin() || (
+        isAuthenticated() && (
+          resource.data.studentId == request.auth.uid ||
+          resource.data.userId == request.auth.uid
+        )
+      );
+
+      // Students can create their own registration (initially unattended)
+      allow create: if isAuthenticated() && (
+        request.resource.data.studentId == request.auth.uid ||
+        request.resource.data.userId == request.auth.uid
+      ) && request.resource.data.attended != true;
+
+      // Admins can verify & record attendance; students cannot tamper with attendance fields
+      allow update: if isAdmin() || (
+        isAuthenticated() && (
+          resource.data.studentId == request.auth.uid ||
+          resource.data.userId == request.auth.uid
+        ) &&
+        // Prevent student from marking themselves attended or changing admin verification
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'attended', 'attendanceStatus', 'attendedAt', 'verifiedByAdminUid', 'verifiedByAdminEmail'
+        ])
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    // Attendance verification audit logs collection
+    match /attendance/{attendanceId} {
+      // Only authenticated admins can read or write attendance audit logs
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // Gamification & Rewards profile collection
+    match /gamification/{studentId} {
+      // Students can read their own gamification profile; admins can read all
+      allow read: if isAuthenticated() && (request.auth.uid == studentId || isAdmin());
+      // Only authorized admin check-in transactions can award coins and update streaks/badges
+      allow write: if isAdmin();
+    }
+
+    // Reward history collection (idempotency ledger)
+    match /reward_history/{rewardId} {
+      // Students can read their own reward history; admins can read all
+      allow read: if isAuthenticated() && (resource.data.studentId == request.auth.uid || isAdmin());
+      // Only authorized admin check-in transactions can create reward entries
+      allow write: if isAdmin();
+    }
+
+    // Saved events collection
+    match /saved_events/{savedId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // App Feedback & Reviews collection
+    match /app_feedback/{feedbackId} {
+      allow read: if isAdmin() || (
+        isAuthenticated() && resource.data.studentUid == request.auth.uid
+      );
+      allow create: if isAuthenticated() && (
+        request.resource.data.studentUid == request.auth.uid
+      );
+      allow update, delete: if isAdmin();
+    }
+
+    // User profiles collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+  }
+}
