@@ -709,8 +709,8 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
                     child: ElevatedButton(
                       onPressed: _isLoading ? null : _saveEvent,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primarySage,
-                        foregroundColor: AppColors.sageDark,
+                        backgroundColor: AppColors.coral,
+                        foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
                         ),
@@ -724,18 +724,18 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
                                   height: 20,
                                   width: 20,
                                   child: CircularProgressIndicator(
-                                    color: AppColors.sageDark,
+                                    color: Colors.white,
                                     strokeWidth: 2,
                                   ),
                                 ),
                                 const SizedBox(width: 12),
                                 Text(
                                   _isUploadingPoster
-                                      ? 'Uploading Poster Image...'
+                                      ? 'Uploading Poster...'
                                       : 'Saving Event...',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
-                                    color: AppColors.sageDark,
+                                    color: Colors.white,
                                   ),
                                 ),
                               ],

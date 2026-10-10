@@ -14,7 +14,7 @@ class FeaturedEventCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFFB8D8B0), Color(0xFFD9D2F0)],
+          colors: [Color(0xFFFFDED6), Color(0xFFE5E1FD)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -22,7 +22,7 @@ class FeaturedEventCard extends StatelessWidget {
         border: Border.all(color: AppColors.border),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.2),
+            color: AppColors.coral.withValues(alpha: 0.15),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -51,8 +51,9 @@ class FeaturedEventCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.8),
+                    color: Colors.white.withValues(alpha: 0.9),
                     borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.border),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -60,13 +61,13 @@ class FeaturedEventCard extends StatelessWidget {
                       const Icon(
                         Icons.star_rounded,
                         size: 14,
-                        color: AppColors.peachDark,
+                        color: AppColors.coral,
                       ),
                       const SizedBox(width: 4),
                       Text(
                         'FEATURED ${event.category.toUpperCase()}',
                         style: const TextStyle(
-                          color: AppColors.textPrimary,
+                          color: AppColors.textMain,
                           fontWeight: FontWeight.bold,
                           fontSize: 11,
                           letterSpacing: 0.5,
@@ -79,7 +80,7 @@ class FeaturedEventCard extends StatelessWidget {
                 Text(
                   event.title,
                   style: const TextStyle(
-                    color: AppColors.textPrimary,
+                    color: AppColors.textMain,
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
                     height: 1.2,
@@ -91,12 +92,12 @@ class FeaturedEventCard extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.6),
+                        color: Colors.white.withValues(alpha: 0.8),
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
                         Icons.calendar_month_rounded,
-                        color: AppColors.primaryDark,
+                        color: AppColors.coral,
                         size: 15,
                       ),
                     ),
@@ -104,7 +105,7 @@ class FeaturedEventCard extends StatelessWidget {
                     Text(
                       event.dateFormatted,
                       style: const TextStyle(
-                        color: AppColors.textPrimary,
+                        color: AppColors.textMain,
                         fontWeight: FontWeight.w600,
                         fontSize: 13,
                       ),
@@ -118,12 +119,12 @@ class FeaturedEventCard extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.6),
+                          color: Colors.white.withValues(alpha: 0.8),
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(
                           Icons.location_on_rounded,
-                          color: AppColors.lavenderDark,
+                          color: AppColors.lavender,
                           size: 15,
                         ),
                       ),
@@ -132,7 +133,7 @@ class FeaturedEventCard extends StatelessWidget {
                         child: Text(
                           event.venue,
                           style: const TextStyle(
-                            color: AppColors.textPrimary,
+                            color: AppColors.textMain,
                             fontWeight: FontWeight.w500,
                             fontSize: 13,
                           ),
@@ -151,7 +152,7 @@ class FeaturedEventCard extends StatelessWidget {
                         vertical: 9,
                       ),
                       decoration: BoxDecoration(
-                        color: AppColors.cardBackground,
+                        color: AppColors.cardWhite,
                         borderRadius: BorderRadius.circular(14),
                         boxShadow: [
                           BoxShadow(
@@ -167,7 +168,7 @@ class FeaturedEventCard extends StatelessWidget {
                           Text(
                             'View Details',
                             style: TextStyle(
-                              color: AppColors.textPrimary,
+                              color: AppColors.textMain,
                               fontWeight: FontWeight.bold,
                               fontSize: 13,
                             ),
@@ -176,7 +177,7 @@ class FeaturedEventCard extends StatelessWidget {
                           Icon(
                             Icons.arrow_forward_rounded,
                             size: 14,
-                            color: AppColors.textPrimary,
+                            color: AppColors.textMain,
                           ),
                         ],
                       ),
@@ -188,14 +189,15 @@ class FeaturedEventCard extends StatelessWidget {
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.7),
+                          color: Colors.white.withValues(alpha: 0.85),
                           borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.border),
                         ),
                         child: Text(
                           '₹${event.registrationFee.toInt()}',
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
+                            color: AppColors.coralDark,
                             fontSize: 13,
                           ),
                         ),
@@ -207,14 +209,15 @@ class FeaturedEventCard extends StatelessWidget {
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.7),
+                          color: Colors.white.withValues(alpha: 0.85),
                           borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.border),
                         ),
                         child: const Text(
                           'Free Entry',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: AppColors.primaryDark,
+                            color: AppColors.mintDark,
                             fontSize: 12,
                           ),
                         ),

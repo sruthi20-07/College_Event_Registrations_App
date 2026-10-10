@@ -284,8 +284,8 @@ class _StudentFeedbackDialogState extends State<StudentFeedbackDialog> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide(
-                      color: AppColors.primarySage,
+                    borderSide: const BorderSide(
+                      color: AppColors.coral,
                       width: 1.5,
                     ),
                   ),
@@ -306,20 +306,20 @@ class _StudentFeedbackDialogState extends State<StudentFeedbackDialog> {
                 child: ElevatedButton(
                   onPressed: _isSubmitting ? null : _submitFeedback,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primarySage,
-                    foregroundColor: AppColors.sageDark,
+                    backgroundColor: AppColors.coral,
+                    foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),
                     elevation: 0,
                   ),
                   child: _isSubmitting
-                      ? SizedBox(
+                      ? const SizedBox(
                           height: 20,
                           width: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: AppColors.sageDark,
+                            color: Colors.white,
                           ),
                         )
                       : const Row(
@@ -348,15 +348,15 @@ class _StudentFeedbackDialogState extends State<StudentFeedbackDialog> {
   String _getRatingLabel(int rating) {
     switch (rating) {
       case 1:
-        return '😞 Poor Experience';
+        return 'Poor Experience';
       case 2:
-        return '😐 Needs Improvement';
+        return 'Needs Improvement';
       case 3:
-        return '🙂 Good';
+        return 'Good';
       case 4:
-        return '😊 Great Experience';
+        return 'Great Experience';
       case 5:
-        return '🤩 Excellent & Loving it!';
+        return 'Excellent & Loving it!';
       default:
         return '';
     }

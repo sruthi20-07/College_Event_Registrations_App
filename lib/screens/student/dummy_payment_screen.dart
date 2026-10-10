@@ -61,7 +61,7 @@ class _DummyPaymentScreenState extends State<DummyPaymentScreen> {
     // Update local in-memory event seat availability
     updateLocalEventSeats(widget.event.id);
 
-    // Try saving to Firestore if database exists; if Firestore fails, log via debugPrint and DO NOT block dummy payment success
+    // Try saving to Firestore if database exists
     String docId = '${widget.event.id}_${widget.registration.studentId}';
     try {
       docId = await _registrationService.registerForEvent(
@@ -92,17 +92,19 @@ class _DummyPaymentScreenState extends State<DummyPaymentScreen> {
       SnackBar(
         content: Row(
           children: [
-            Icon(Icons.check_circle, color: AppColors.cardWhite),
+            const Icon(Icons.check_circle, color: Colors.white),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                '✓ Payment Successful\nPayment of ₹${widget.event.registrationFee.toInt()} completed successfully. Registration confirmed!',
+                'Payment Successful\nPayment of ₹${widget.event.registrationFee.toInt()} completed successfully. Registration confirmed!',
                 style: const TextStyle(color: Colors.white),
               ),
             ),
           ],
         ),
-        backgroundColor: AppColors.sageDark,
+        backgroundColor: AppColors.mintDark,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         duration: const Duration(seconds: 4),
       ),
     );
@@ -124,159 +126,194 @@ class _DummyPaymentScreenState extends State<DummyPaymentScreen> {
     final fee = widget.event.registrationFee;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Payment Gateway')),
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: const Text('Payment Gateway'),
+        backgroundColor: AppColors.background,
+        elevation: 0,
+        centerTitle: true,
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // DEMO BANNER
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: AppColors.peachLight,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.pastelPeach),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.info_outline, color: AppColors.peachDark, size: 20),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'DEMO MODE: No real money will be charged. This simulates a payment gateway for project evaluation.',
-                        style: TextStyle(fontSize: 12, color: AppColors.peachDark, height: 1.4),
-                      ),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 600),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // DEMO BANNER
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppColors.yellowLight,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.sunnyYellow),
                     ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // SUMMARY CARD
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: AppColors.cardWhite,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: AppColors.border),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.03),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Payment Summary',
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textMain,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    _summaryRow('Event Name', widget.event.title),
-                    _summaryRow(
-                      'Student Name',
-                      widget.registration.studentName,
-                    ),
-                    _summaryRow('Student ID', widget.registration.rollNumber),
-                    Divider(height: 24, color: AppColors.border),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    child: Row(
                       children: [
-                        Text(
-                          'Total Registration Fee',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                            color: AppColors.textMain,
-                          ),
-                        ),
-                        Text(
-                          '₹${fee.toInt()}',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.sageDark,
+                        const Icon(Icons.info_outline, color: AppColors.yellowDark, size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'DEMO MODE: No real money will be charged. This simulates a payment gateway for project evaluation.',
+                            style: TextStyle(fontSize: 12, color: AppColors.yellowDark, height: 1.4),
                           ),
                         ),
                       ],
                     ),
-                  ],
-                ),
-              ),
+                  ),
 
-              const SizedBox(height: 22),
+                  const SizedBox(height: 20),
 
-              // PAYMENT METHOD SELECTOR
-              Text(
-                'Select Payment Method',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textMain,
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              _methodTile(
-                'UPI / GPay / PhonePe',
-                Icons.account_balance_wallet_outlined,
-              ),
-              _methodTile('Credit / Debit Card', Icons.credit_card),
-              _methodTile('Net Banking', Icons.account_balance),
-
-              const SizedBox(height: 26),
-
-              // ACTION BUTTONS
-              ElevatedButton(
-                onPressed: _isProcessing ? null : _processPayment,
-                child: _isProcessing
-                    ? Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              color: AppColors.sageDark,
-                              strokeWidth: 2,
-                            ),
+                  // SUMMARY CARD
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: AppColors.cardWhite,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: AppColors.border),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.03),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Payment Summary',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textMain,
+                            letterSpacing: -0.3,
                           ),
-                          const SizedBox(width: 12),
-                          const Text('Processing Payment...'),
-                        ],
-                      )
-                    : Text(
-                        'PAY ₹${fee.toInt()}',
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
+                        ),
+                        const SizedBox(height: 14),
+                        _summaryRow('Event Name', widget.event.title),
+                        _summaryRow(
+                          'Student Name',
+                          widget.registration.studentName,
+                        ),
+                        _summaryRow('Student ID', widget.registration.rollNumber),
+                        const Divider(height: 24, color: AppColors.border),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Total Registration Fee',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                                color: AppColors.textMain,
+                              ),
+                            ),
+                            Text(
+                              '₹${fee.toInt()}',
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.coral,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 22),
+
+                  // PAYMENT METHOD SELECTOR
+                  const Text(
+                    'Select Payment Method',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textMain,
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  _methodTile(
+                    'UPI / GPay / PhonePe',
+                    Icons.account_balance_wallet_outlined,
+                  ),
+                  _methodTile('Credit / Debit Card', Icons.credit_card),
+                  _methodTile('Net Banking', Icons.account_balance),
+
+                  const SizedBox(height: 26),
+
+                  // ACTION BUTTONS
+                  SizedBox(
+                    height: 50,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.coral,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        elevation: 0,
+                      ),
+                      onPressed: _isProcessing ? null : _processPayment,
+                      child: _isProcessing
+                          ? const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                                SizedBox(width: 12),
+                                Text(
+                                  'Processing Payment...',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            )
+                          : Text(
+                              'PAY ₹${fee.toInt()}',
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  SizedBox(
+                    height: 48,
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.textSecondary,
+                        side: const BorderSide(color: AppColors.border),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
                         ),
                       ),
+                      onPressed: _isProcessing
+                          ? null
+                          : () {
+                              Navigator.pop(context);
+                            },
+                      child: const Text('CANCEL PAYMENT'),
+                    ),
+                  ),
+                ],
               ),
-
-              const SizedBox(height: 10),
-
-              OutlinedButton(
-                onPressed: _isProcessing
-                    ? null
-                    : () {
-                        Navigator.pop(context);
-                      },
-                child: const Text('CANCEL PAYMENT'),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -289,13 +326,13 @@ class _DummyPaymentScreenState extends State<DummyPaymentScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+          Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
           const SizedBox(width: 8),
           Flexible(
             child: Text(
               value,
               textAlign: TextAlign.end,
-              style: TextStyle(
+              style: const TextStyle(
                 fontWeight: FontWeight.w600,
                 fontSize: 13,
                 color: AppColors.textMain,
@@ -313,41 +350,45 @@ class _DummyPaymentScreenState extends State<DummyPaymentScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: isSelected ? AppColors.sageLight : AppColors.cardWhite,
+        color: isSelected ? AppColors.coralLight : AppColors.cardWhite,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: isSelected ? AppColors.primarySage : AppColors.border,
+          color: isSelected ? AppColors.coral : AppColors.border,
           width: isSelected ? 1.5 : 1,
         ),
       ),
-      child: ListTile(
-        leading: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: isSelected ? AppColors.pastelSage : AppColors.background,
-            borderRadius: BorderRadius.circular(10),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(14),
+        child: ListTile(
+          leading: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: isSelected ? AppColors.cardWhite : AppColors.background,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              icon,
+              color: isSelected ? AppColors.coral : AppColors.textSecondary,
+              size: 20,
+            ),
           ),
-          child: Icon(
-            icon,
-            color: isSelected ? AppColors.sageDark : AppColors.textSecondary,
-            size: 20,
+          title: Text(
+            method,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+              color: isSelected ? AppColors.coralDark : AppColors.textMain,
+            ),
           ),
-        ),
-        title: Text(
-          method,
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
-            color: isSelected ? AppColors.sageDark : AppColors.textMain,
+          trailing: Icon(
+            isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+            color: isSelected ? AppColors.coral : AppColors.textSecondary,
           ),
+          onTap: () {
+            setState(() => _paymentMethod = method);
+          },
         ),
-        trailing: Icon(
-          isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
-          color: isSelected ? AppColors.sageDark : AppColors.textSecondary,
-        ),
-        onTap: () {
-          setState(() => _paymentMethod = method);
-        },
       ),
     );
   }

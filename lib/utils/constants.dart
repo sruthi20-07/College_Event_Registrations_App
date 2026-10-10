@@ -1,62 +1,72 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  // Main Pastel Theme Palette Tokens (Explicit & Canonical)
-  static const Color background = Color(0xFFFAF9F6); // Warm off-white
-  
-  // Sage Green (Primary Brand)
-  static const Color primarySage = Color(0xFFA8C3A0); // Primary pastel sage green
-  static const Color pastelSage = primarySage;
-  static const Color sageDark = Color(0xFF4A6B44); // Deep sage for readable text & icons
-  static const Color sageLight = Color(0xFFE8F1E6); // Very soft sage tint
-  static const Color primary = primarySage;
-  static const Color primaryDark = sageDark;
-  static const Color primaryLight = sageLight;
-
-  // Soft Lavender
-  static const Color pastelLavender = Color(0xFFD9D2F0); // Soft lavender
-  static const Color lavenderDark = Color(0xFF5D5184); // Deep lavender
-  static const Color lavenderLight = Color(0xFFF1EEF9); // Lavender tint
-  static const Color lavender = pastelLavender;
-
-  // Pale Peach
-  static const Color pastelPeach = Color(0xFFF6D7C3); // Pale peach
-  static const Color peachDark = Color(0xFF9A5930); // Deep peach
-  static const Color peachLight = Color(0xFFFAF0E9); // Peach tint
-  static const Color peach = pastelPeach;
-
-  // Powder Pink
-  static const Color pastelPink = Color(0xFFF2D5DC); // Powder pink
-  static const Color pinkDark = Color(0xFF8F4154); // Deep pink
-  static const Color pinkLight = Color(0xFFFAEEF1); // Pink tint
-  static const Color pink = pastelPink;
-
-  // Light Sky Blue
-  static const Color pastelSkyBlue = Color(0xFFD7E7F4); // Light sky blue
-  static const Color skyBlueDark = Color(0xFF386389); // Deep sky blue
-  static const Color skyBlueLight = Color(0xFFEDF4FA); // Sky blue tint
-  static const Color skyBlue = pastelSkyBlue;
-
-  // Cards & Surfaces
-  static const Color cardWhite = Color(0xFFFFFFFF); // White cards
+  // Canonical Vibrant Pastel Palette Tokens
+  static const Color background = Color(0xFFFFF8F2); // Warm Cream
+  static const Color cardWhite = Color(0xFFFFFFFF); // Card Background
   static const Color cardBackground = Color(0xFFFFFFFF);
-  
-  // Typography
-  static const Color textMain = Color(0xFF343A40); // Main text
-  static const Color textPrimary = Color(0xFF343A40);
-  static const Color textSecondary = Color(0xFF7A828A); // Secondary text
-  
-  // Borders & Dividers
-  static const Color border = Color(0xFFE8E8E4); // Borders and dividers
-  static const Color divider = Color(0xFFE8E8E4);
 
-  // Status Colors (Pastel base with clear readable dark tone)
-  static const Color success = Color(0xFFA8C3A0);
-  static const Color successDark = Color(0xFF3E5C38);
-  static const Color warning = Color(0xFFF6D7C3);
-  static const Color warningDark = Color(0xFF9A5930);
-  static const Color error = Color(0xFFF2D5DC);
-  static const Color errorDark = Color(0xFF9B2C3B);
+  // Primary Accent (Coral)
+  static const Color coral = Color(0xFFFF7A59); // Primary Accent Coral
+  static const Color coralDark = Color(0xFFC84525); // Deep Coral for text/icons
+  static const Color coralLight = Color(0xFFFFEFEB); // Coral Tint
+  static const Color primary = coral;
+  static const Color primaryDark = coralDark;
+  static const Color primaryLight = coralLight;
+
+  // Secondary Accent (Vibrant Lavender)
+  static const Color lavender = Color(0xFF7C6CF2); // Vibrant Lavender
+  static const Color lavenderDark = Color(0xFF4C3EBE); // Deep Lavender for text/icons
+  static const Color lavenderLight = Color(0xFFF1EFFF); // Lavender Tint
+  static const Color secondary = lavender;
+  static const Color pastelLavender = lavender;
+
+  // Mint Green
+  static const Color mint = Color(0xFF72C9A7); // Mint
+  static const Color mintDark = Color(0xFF267D5B); // Deep Mint
+  static const Color mintLight = Color(0xFFEBF7F2); // Mint Tint
+  static const Color primarySage = mint; // Compatibility aliases
+  static const Color pastelSage = mint;
+  static const Color sageDark = mintDark;
+  static const Color sageLight = mintLight;
+
+  // Sky Blue
+  static const Color skyBlue = Color(0xFF70B7F4); // Sky Blue
+  static const Color skyBlueDark = Color(0xFF276FA8); // Deep Sky Blue
+  static const Color skyBlueLight = Color(0xFFEEF6FD); // Sky Blue Tint
+  static const Color pastelSkyBlue = skyBlue;
+
+  // Pink
+  static const Color pink = Color(0xFFF4A7C5); // Pink
+  static const Color pinkDark = Color(0xFFA63964); // Deep Pink
+  static const Color pinkLight = Color(0xFFFDF0F5); // Pink Tint
+  static const Color pastelPink = pink;
+
+  // Sunny Yellow
+  static const Color sunnyYellow = Color(0xFFFFC857); // Sunny Yellow
+  static const Color yellowDark = Color(0xFF9E6D00); // Deep Yellow
+  static const Color yellowLight = Color(0xFFFFF8E7); // Yellow Tint
+  static const Color pastelPeach = sunnyYellow; // Compatibility aliases
+  static const Color peach = sunnyYellow;
+  static const Color peachDark = yellowDark;
+  static const Color peachLight = yellowLight;
+
+  // Typography
+  static const Color textMain = Color(0xFF292638); // Primary text
+  static const Color textPrimary = Color(0xFF292638);
+  static const Color textSecondary = Color(0xFF777586); // Secondary text
+
+  // Borders & Dividers
+  static const Color border = Color(0xFFF0E8E2); // Border
+  static const Color divider = Color(0xFFF0E8E2);
+
+  // Status Colors
+  static const Color success = mint;
+  static const Color successDark = mintDark;
+  static const Color warning = sunnyYellow;
+  static const Color warningDark = yellowDark;
+  static const Color error = pink;
+  static const Color errorDark = Color(0xFFDC2626);
 }
 
 class UserRoles {

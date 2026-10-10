@@ -22,13 +22,13 @@ class ManageEventsScreen extends StatelessWidget {
             MaterialPageRoute(builder: (_) => const CreateEditEventScreen()),
           );
         },
-        backgroundColor: AppColors.primarySage,
-        foregroundColor: AppColors.sageDark,
+        backgroundColor: AppColors.coral,
+        foregroundColor: Colors.white,
         elevation: 2,
-        icon: Icon(Icons.add, color: AppColors.sageDark),
-        label: Text(
+        icon: const Icon(Icons.add, color: Colors.white),
+        label: const Text(
           'Add Event',
-          style: TextStyle(color: AppColors.sageDark, fontWeight: FontWeight.bold),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
       ),
       body: StreamBuilder<List<EventModel>>(

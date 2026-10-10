@@ -23,29 +23,29 @@ class BottomNavBar extends StatelessWidget {
       child: NavigationBar(
         selectedIndex: currentIndex,
         onDestinationSelected: onTap,
-        backgroundColor: AppColors.cardBackground,
+        backgroundColor: AppColors.cardWhite,
         elevation: 0,
         height: 65,
-        indicatorColor: AppColors.primaryLight,
+        indicatorColor: AppColors.coralLight,
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.home_outlined, color: AppColors.textSecondary),
-            selectedIcon: Icon(Icons.home_rounded, color: AppColors.primaryDark),
+            selectedIcon: Icon(Icons.home_rounded, color: AppColors.coral),
             label: 'Home',
           ),
           NavigationDestination(
             icon: Icon(Icons.event_outlined, color: AppColors.textSecondary),
-            selectedIcon: Icon(Icons.event_rounded, color: AppColors.primaryDark),
+            selectedIcon: Icon(Icons.event_rounded, color: AppColors.coral),
             label: 'Events',
           ),
           NavigationDestination(
             icon: Icon(Icons.confirmation_num_outlined, color: AppColors.textSecondary),
-            selectedIcon: Icon(Icons.confirmation_num_rounded, color: AppColors.primaryDark),
+            selectedIcon: Icon(Icons.confirmation_num_rounded, color: AppColors.coral),
             label: 'My Events',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline_rounded, color: AppColors.textSecondary),
-            selectedIcon: Icon(Icons.person_rounded, color: AppColors.primaryDark),
+            selectedIcon: Icon(Icons.person_rounded, color: AppColors.coral),
             label: 'Profile',
           ),
         ],

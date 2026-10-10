@@ -105,10 +105,10 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                       width: double.infinity,
                       height: 190,
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
+                        gradient: const LinearGradient(
                           colors: [
-                            AppColors.pastelSage,
-                            AppColors.pastelLavender,
+                            Color(0xFFFFDED6),
+                            Color(0xFFE5E1FD),
                           ],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
@@ -120,12 +120,12 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                         child: Container(
                           padding: const EdgeInsets.all(18),
                           decoration: BoxDecoration(
-                            color: AppColors.cardWhite.withValues(alpha: 0.7),
+                            color: AppColors.cardWhite.withValues(alpha: 0.85),
                             shape: BoxShape.circle,
                           ),
-                          child: Icon(
+                          child: const Icon(
                             Icons.event_seat_rounded,
-                            color: AppColors.sageDark,
+                            color: AppColors.coral,
                             size: 52,
                           ),
                         ),

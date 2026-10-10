@@ -440,11 +440,11 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                 child: ElevatedButton(
                   onPressed: isLoading ? null : _handleRegistrationProceed,
                   child: isLoading
-                      ? SizedBox(
+                      ? const SizedBox(
                           height: 22,
                           width: 22,
                           child: CircularProgressIndicator(
-                            color: AppColors.sageDark,
+                            color: Colors.white,
                             strokeWidth: 2,
                           ),
                         )

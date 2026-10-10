@@ -49,6 +49,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
     if (isDesktop) {
       return Scaffold(
+        backgroundColor: AppColors.background,
         body: Row(
           children: [
             // SIDEBAR NAVIGATION RAIL
@@ -60,23 +61,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 });
               },
               backgroundColor: AppColors.cardWhite,
-              indicatorColor: AppColors.sageLight,
-              selectedIconTheme: IconThemeData(color: AppColors.sageDark),
-              unselectedIconTheme: IconThemeData(color: AppColors.textSecondary),
-              selectedLabelTextStyle: TextStyle(
-                color: AppColors.sageDark,
+              indicatorColor: AppColors.coralLight,
+              selectedIconTheme: const IconThemeData(color: AppColors.coral),
+              unselectedIconTheme: const IconThemeData(color: AppColors.textSecondary),
+              selectedLabelTextStyle: const TextStyle(
+                color: AppColors.coral,
                 fontWeight: FontWeight.bold,
               ),
-              unselectedLabelTextStyle: TextStyle(color: AppColors.textSecondary),
+              unselectedLabelTextStyle: const TextStyle(color: AppColors.textSecondary),
               labelType: NavigationRailLabelType.all,
               leading: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 20),
                 child: CircleAvatar(
-                  backgroundColor: AppColors.sageLight,
+                  backgroundColor: AppColors.coralLight,
                   radius: 24,
-                  child: Icon(
+                  child: const Icon(
                     Icons.admin_panel_settings,
-                    color: AppColors.sageDark,
+                    color: AppColors.coral,
                   ),
                 ),
               ),
@@ -103,7 +104,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 ),
               ],
             ),
-            VerticalDivider(thickness: 1, width: 1, color: AppColors.border),
+            const VerticalDivider(thickness: 1, width: 1, color: AppColors.border),
             Expanded(child: _buildBody()),
           ],
         ),
@@ -111,40 +112,49 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     }
 
     return Scaffold(
+      backgroundColor: AppColors.background,
       body: _buildBody(),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: (index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: AppColors.cardWhite,
-        selectedItemColor: AppColors.sageDark,
-        unselectedItemColor: AppColors.textSecondary,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.dashboard_outlined),
-            activeIcon: Icon(Icons.dashboard),
-            label: 'Dashboard',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.event_outlined),
-            activeIcon: Icon(Icons.event),
-            label: 'Events',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people_alt_outlined),
-            activeIcon: Icon(Icons.people_alt),
-            label: 'Registrations',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline),
-            activeIcon: Icon(Icons.person),
-            label: 'Profile',
-          ),
-        ],
+      bottomNavigationBar: Container(
+        decoration: const BoxDecoration(
+          border: Border(top: BorderSide(color: AppColors.border, width: 1)),
+        ),
+        child: BottomNavigationBar(
+          currentIndex: _selectedIndex,
+          onTap: (index) {
+            setState(() {
+              _selectedIndex = index;
+            });
+          },
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: AppColors.cardWhite,
+          selectedItemColor: AppColors.coral,
+          unselectedItemColor: AppColors.textSecondary,
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+          unselectedLabelStyle: const TextStyle(fontSize: 12),
+          elevation: 0,
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.dashboard_outlined),
+              activeIcon: Icon(Icons.dashboard),
+              label: 'Dashboard',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.event_outlined),
+              activeIcon: Icon(Icons.event),
+              label: 'Events',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.people_alt_outlined),
+              activeIcon: Icon(Icons.people_alt),
+              label: 'Registrations',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person_outline),
+              activeIcon: Icon(Icons.person),
+              label: 'Profile',
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -166,143 +176,92 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Widget _buildDashboardOverview() {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Admin Dashboard'),
+        backgroundColor: AppColors.background,
+        elevation: 0,
         actions: [
           IconButton(
-            icon: Icon(Icons.logout, color: AppColors.textMain),
+            icon: const Icon(Icons.logout, color: AppColors.textMain),
             tooltip: 'Logout',
             onPressed: () => _handleAdminLogout(context),
           ),
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // WELCOME BANNER
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    AppColors.pastelSage,
-                    AppColors.pastelLavender,
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Welcome back, Admin 👋',
-                    style: TextStyle(
-                      color: AppColors.textMain,
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: -0.3,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _authService.currentUser?.email ?? 'admin@college.edu',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            Text(
-              'Overview Statistics',
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textMain,
-                letterSpacing: -0.3,
-              ),
-            ),
-
-            const SizedBox(height: 14),
-
-            // SUMMARY CARDS (STREAM BACKED)
-            StreamBuilder<List<EventModel>>(
-              stream: _eventService.streamAllEventsAdmin(),
-              builder: (context, eventSnapshot) {
-                final events = eventSnapshot.data ?? [];
-                final totalEvents = events.length;
-                final activeEvents = events.where((e) => e.isPublished).length;
-                final upcomingEvents = events
-                    .where((e) => !e.isDeadlinePassed)
-                    .length;
-
-                return StreamBuilder<List<RegistrationModel>>(
-                  stream: _registrationService.streamEventRegistrations(''),
-                  builder: (context, regSnapshot) {
-                    final regs = regSnapshot.data ?? [];
-                    final totalRegistrations = regs
-                        .where((r) => r.isRegistered)
-                        .length;
-
-                    return GridView.count(
-                      crossAxisCount: MediaQuery.of(context).size.width > 600
-                          ? 4
-                          : 2,
-                      crossAxisSpacing: 14,
-                      mainAxisSpacing: 14,
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      children: [
-                        _buildSummaryCard(
-                          'Total Events',
-                          '$totalEvents',
-                          Icons.event,
-                          AppColors.skyBlueLight,
-                          AppColors.skyBlueDark,
-                        ),
-                        _buildSummaryCard(
-                          'Active Events',
-                          '$activeEvents',
-                          Icons.check_circle_outline,
-                          AppColors.sageLight,
-                          AppColors.sageDark,
-                        ),
-                        _buildSummaryCard(
-                          'Registrations',
-                          '$totalRegistrations',
-                          Icons.people_outline,
-                          AppColors.lavenderLight,
-                          AppColors.lavenderDark,
-                        ),
-                        _buildSummaryCard(
-                          'Upcoming',
-                          '$upcomingEvents',
-                          Icons.schedule,
-                          AppColors.peachLight,
-                          AppColors.peachDark,
-                        ),
-                      ],
-                    );
-                  },
-                );
-              },
-            ),
-
-            const SizedBox(height: 24),
-
-            // QUICK ACTIONS
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 850),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Quick Actions',
+                // 1. WELCOME BANNER (CORAL TO LAVENDER GRADIENT)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [
+                        Color(0xFFFFEDE6),
+                        Color(0xFFEDE9FE),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.cardWhite,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: const Icon(
+                          Icons.admin_panel_settings_outlined,
+                          color: AppColors.coral,
+                          size: 26,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Welcome back, Admin',
+                              style: TextStyle(
+                                color: AppColors.textMain,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: -0.3,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              _authService.currentUser?.email ?? 'admin@college.edu',
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // 2. OVERVIEW STATISTICS
+                const Text(
+                  'Overview Statistics',
                   style: TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.bold,
@@ -310,115 +269,279 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     letterSpacing: -0.3,
                   ),
                 ),
-                TextButton(
-                  onPressed: () {
-                    setState(() => _selectedIndex = 1);
+
+                const SizedBox(height: 12),
+
+                // SUMMARY CARDS (STREAM BACKED)
+                StreamBuilder<List<EventModel>>(
+                  stream: _eventService.streamAllEventsAdmin(),
+                  builder: (context, eventSnapshot) {
+                    final events = eventSnapshot.data ?? [];
+                    final totalEvents = events.length;
+                    final activeEvents = events.where((e) => e.isPublished).length;
+                    final upcomingEvents = events
+                        .where((e) => !e.isDeadlinePassed)
+                        .length;
+
+                    return StreamBuilder<List<RegistrationModel>>(
+                      stream: _registrationService.streamEventRegistrations(''),
+                      builder: (context, regSnapshot) {
+                        final regs = regSnapshot.data ?? [];
+                        final totalRegistrations = regs
+                            .where((r) => r.isRegistered)
+                            .length;
+
+                        return GridView.count(
+                          crossAxisCount: MediaQuery.of(context).size.width > 600
+                              ? 4
+                              : 2,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                          childAspectRatio: 1.35,
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          children: [
+                            _buildSummaryCard(
+                              'Total Events',
+                              '$totalEvents',
+                              Icons.event_outlined,
+                              AppColors.skyBlueLight,
+                              AppColors.skyBlueDark,
+                            ),
+                            _buildSummaryCard(
+                              'Active Events',
+                              '$activeEvents',
+                              Icons.check_circle_outline,
+                              AppColors.mintLight,
+                              AppColors.mintDark,
+                            ),
+                            _buildSummaryCard(
+                              'Registrations',
+                              '$totalRegistrations',
+                              Icons.people_alt_outlined,
+                              AppColors.coralLight,
+                              AppColors.coralDark,
+                            ),
+                            _buildSummaryCard(
+                              'Upcoming',
+                              '$upcomingEvents',
+                              Icons.schedule_outlined,
+                              AppColors.lavenderLight,
+                              AppColors.lavenderDark,
+                            ),
+                          ],
+                        );
+                      },
+                    );
                   },
-                  style: TextButton.styleFrom(foregroundColor: AppColors.sageDark),
-                  child: const Text('View All Events'),
                 ),
+
+                const SizedBox(height: 20),
+
+                // 3. QUICK ACTIONS — COMPACT REDESIGN
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Quick Actions',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textMain,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: () {
+                        setState(() => _selectedIndex = 1);
+                      },
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.coral,
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      icon: const Icon(Icons.arrow_forward, size: 14),
+                      label: const Text(
+                        'View All Events',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 12),
+
+                // ROW OF COMPACT PRIMARY/SECONDARY ACTIONS
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.coral,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 0,
+                        ),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const CreateEditEventScreen(),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text(
+                          'Add New Event',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: AppColors.cardWhite,
+                          foregroundColor: AppColors.textMain,
+                          side: const BorderSide(color: AppColors.border),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: () {
+                          setState(() => _selectedIndex = 2);
+                        },
+                        icon: const Icon(Icons.format_list_bulleted, size: 18, color: AppColors.lavender),
+                        label: const Text(
+                          'View Registrations',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 12),
+
+                // COMPACT FULL-WIDTH ACTION CARD: SCAN QR
+                _buildCompactActionCard(
+                  icon: Icons.qr_code_scanner,
+                  iconBg: AppColors.mintLight,
+                  iconColor: AppColors.mintDark,
+                  title: 'Scan QR / Verify Attendance',
+                  subtitle: 'Quickly scan student pass and check in',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const QrScannerScreen()),
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 10),
+
+                // COMPACT FULL-WIDTH ACTION CARD: STUDENT FEEDBACK
+                _buildCompactActionCard(
+                  icon: Icons.rate_review_outlined,
+                  iconBg: AppColors.lavenderLight,
+                  iconColor: AppColors.lavenderDark,
+                  title: 'Student App Feedback & Reviews',
+                  subtitle: 'Inspect ratings, feedback and student issues',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const AdminFeedbackScreen(),
+                      ),
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 24),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
 
-            const SizedBox(height: 12),
-
-            Row(
+  Widget _buildCompactActionCard({
+    required IconData icon,
+    required Color iconBg,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.cardWhite,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
               children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primarySage,
-                      foregroundColor: AppColors.sageDark,
-                    ),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const CreateEditEventScreen(),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.add, size: 18),
-                    label: const Text('Add New Event'),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: iconBg,
+                    borderRadius: BorderRadius.circular(10),
                   ),
+                  child: Icon(icon, color: iconColor, size: 20),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      setState(() => _selectedIndex = 2);
-                    },
-                    icon: Icon(Icons.format_list_bulleted, size: 18, color: AppColors.textMain),
-                    label: const Text('View Registrations'),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textMain,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
                   ),
+                ),
+                const Icon(
+                  Icons.chevron_right,
+                  color: AppColors.textSecondary,
+                  size: 20,
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.sageLight,
-                  foregroundColor: AppColors.sageDark,
-                  side: BorderSide(color: AppColors.primarySage),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  elevation: 0,
-                ),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const QrScannerScreen()),
-                  );
-                },
-                icon: Icon(Icons.qr_code_scanner, size: 20, color: AppColors.sageDark),
-                label: Text(
-                  'Scan QR / Verify Attendance',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.sageDark,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  backgroundColor: AppColors.lavenderLight,
-                  foregroundColor: AppColors.lavenderDark,
-                  side: BorderSide(color: AppColors.pastelLavender),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const AdminFeedbackScreen(),
-                    ),
-                  );
-                },
-                icon: Icon(Icons.rate_review_outlined, size: 20, color: AppColors.lavenderDark),
-                label: Text(
-                  'Student App Feedback & Reviews',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.lavenderDark,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-          ],
+          ),
         ),
       ),
     );
@@ -432,16 +555,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     Color iconColor,
   ) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.cardWhite,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.border),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -450,17 +573,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           CircleAvatar(
-            radius: 18,
+            radius: 16,
             backgroundColor: bg,
-            child: Icon(icon, color: iconColor, size: 20),
+            child: Icon(icon, color: iconColor, size: 18),
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 count,
-                style: TextStyle(
-                  fontSize: 22,
+                style: const TextStyle(
+                  fontSize: 20,
                   fontWeight: FontWeight.bold,
                   color: AppColors.textMain,
                 ),
@@ -468,7 +591,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               const SizedBox(height: 2),
               Text(
                 title,
-                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.textSecondary,
+                ),
               ),
             ],
           ),
@@ -481,69 +608,87 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     final user = _authService.currentUser;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Admin Profile')),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            const SizedBox(height: 10),
-            CircleAvatar(
-              radius: 45,
-              backgroundColor: AppColors.sageLight,
-              child: Icon(
-                Icons.admin_panel_settings,
-                size: 50,
-                color: AppColors.sageDark,
-              ),
-            ),
-            const SizedBox(height: 15),
-            Text(
-              'System Administrator',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textMain,
-                letterSpacing: -0.5,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              user?.email ?? 'admin@college.edu',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppColors.lavenderLight,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.pastelLavender),
-              ),
-              child: Text(
-                'ROLE: ADMIN / FACULTY',
-                style: TextStyle(
-                  color: AppColors.lavenderDark,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: const Text('Admin Profile'),
+        backgroundColor: AppColors.background,
+        elevation: 0,
+      ),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 600),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                const SizedBox(height: 10),
+                CircleAvatar(
+                  radius: 45,
+                  backgroundColor: AppColors.coralLight,
+                  child: const Icon(
+                    Icons.admin_panel_settings,
+                    size: 50,
+                    color: AppColors.coral,
+                  ),
                 ),
-              ),
-            ),
-            const Spacer(),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.pinkLight,
-                  foregroundColor: AppColors.pinkDark,
-                  elevation: 0,
+                const SizedBox(height: 15),
+                const Text(
+                  'System Administrator',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textMain,
+                    letterSpacing: -0.5,
+                  ),
                 ),
-                onPressed: () => _handleAdminLogout(context),
-                icon: const Icon(Icons.logout),
-                label: const Text('LOGOUT OF ADMIN PANEL'),
-              ),
+                const SizedBox(height: 4),
+                Text(
+                  user?.email ?? 'admin@college.edu',
+                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.lavenderLight,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.lavender),
+                  ),
+                  child: const Text(
+                    'ROLE: ADMIN / FACULTY',
+                    style: TextStyle(
+                      color: AppColors.lavenderDark,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.pinkLight,
+                      foregroundColor: AppColors.pinkDark,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        side: const BorderSide(color: AppColors.pink),
+                      ),
+                    ),
+                    onPressed: () => _handleAdminLogout(context),
+                    icon: const Icon(Icons.logout),
+                    label: const Text(
+                      'LOGOUT OF ADMIN PANEL',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
             ),
-            const SizedBox(height: 20),
-          ],
+          ),
         ),
       ),
     );

@@ -120,9 +120,9 @@ class _MyEventsScreenState extends State<MyEventsScreen>
           ),
           bottom: TabBar(
             controller: _tabController,
-            labelColor: AppColors.sageDark,
+            labelColor: AppColors.coral,
             unselectedLabelColor: AppColors.textSecondary,
-            indicatorColor: AppColors.sageDark,
+            indicatorColor: AppColors.coral,
             indicatorWeight: 3,
             tabs: const [
               Tab(text: 'Upcoming'),
@@ -135,8 +135,8 @@ class _MyEventsScreenState extends State<MyEventsScreen>
           stream: _registrationService.streamStudentRegistrations(currentUid),
           builder: (context, regSnapshot) {
             if (regSnapshot.connectionState == ConnectionState.waiting) {
-              return Center(
-                child: CircularProgressIndicator(color: AppColors.sageDark),
+              return const Center(
+                child: CircularProgressIndicator(color: AppColors.coral),
               );
             }
 

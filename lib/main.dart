@@ -33,31 +33,31 @@ class CollegeEventApp extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
         scaffoldBackgroundColor: AppColors.background,
-        colorScheme: ColorScheme.light(
-          primary: AppColors.primary,
-          onPrimary: AppColors.textPrimary,
+        colorScheme: const ColorScheme.light(
+          primary: AppColors.coral,
+          onPrimary: Colors.white,
           secondary: AppColors.lavender,
-          onSecondary: AppColors.lavenderDark,
-          surface: AppColors.cardBackground,
-          onSurface: AppColors.textPrimary,
-          error: AppColors.pink,
-          onError: AppColors.errorDark,
+          onSecondary: Colors.white,
+          surface: AppColors.cardWhite,
+          onSurface: AppColors.textMain,
+          error: AppColors.pinkDark,
+          onError: Colors.white,
         ),
         appBarTheme: const AppBarTheme(
           backgroundColor: AppColors.background,
           elevation: 0,
           scrolledUnderElevation: 0,
           centerTitle: false,
-          foregroundColor: AppColors.textPrimary,
+          foregroundColor: AppColors.textMain,
           titleTextStyle: TextStyle(
-            color: AppColors.textPrimary,
+            color: AppColors.textMain,
             fontSize: 18,
             fontWeight: FontWeight.bold,
           ),
-          iconTheme: IconThemeData(color: AppColors.textPrimary),
+          iconTheme: IconThemeData(color: AppColors.textMain),
         ),
         cardTheme: CardThemeData(
-          color: AppColors.cardBackground,
+          color: AppColors.cardWhite,
           elevation: 0,
           margin: EdgeInsets.zero,
           shape: RoundedRectangleBorder(
@@ -66,13 +66,13 @@ class CollegeEventApp extends StatelessWidget {
           ),
         ),
         dividerTheme: const DividerThemeData(
-          color: AppColors.divider,
+          color: AppColors.border,
           thickness: 1,
           space: 1,
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: AppColors.cardBackground,
+          fillColor: AppColors.cardWhite,
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           hintStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
           labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
@@ -88,17 +88,17 @@ class CollegeEventApp extends StatelessWidget {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: AppColors.primaryDark, width: 1.5),
+            borderSide: const BorderSide(color: AppColors.coral, width: 1.5),
           ),
           errorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: AppColors.errorDark),
+            borderSide: const BorderSide(color: AppColors.pinkDark),
           ),
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primary,
-            foregroundColor: AppColors.textPrimary,
+            backgroundColor: AppColors.coral,
+            foregroundColor: Colors.white,
             elevation: 0,
             shadowColor: Colors.transparent,
             minimumSize: const Size(64, 48),
@@ -114,7 +114,7 @@ class CollegeEventApp extends StatelessWidget {
         ),
         outlinedButtonTheme: OutlinedButtonThemeData(
           style: OutlinedButton.styleFrom(
-            foregroundColor: AppColors.textPrimary,
+            foregroundColor: AppColors.textMain,
             side: const BorderSide(color: AppColors.border, width: 1.2),
             minimumSize: const Size(64, 48),
             shape: RoundedRectangleBorder(

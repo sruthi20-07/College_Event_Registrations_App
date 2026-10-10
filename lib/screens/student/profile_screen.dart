@@ -47,14 +47,14 @@ class ProfileScreen extends StatelessWidget {
                   width: 90,
                   height: 90,
                   decoration: BoxDecoration(
-                    color: AppColors.sageLight,
+                    color: AppColors.coralLight,
                     shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.primarySage, width: 2),
+                    border: Border.all(color: AppColors.coral, width: 2),
                   ),
-                  child: Icon(
+                  child: const Icon(
                     Icons.person_rounded,
                     size: 50,
-                    color: AppColors.sageDark,
+                    color: AppColors.coral,
                   ),
                 ),
 
@@ -198,10 +198,10 @@ class ProfileScreen extends StatelessWidget {
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          gradient: LinearGradient(
+                          gradient: const LinearGradient(
                             colors: [
-                              AppColors.pastelSage,
-                              AppColors.pastelLavender,
+                              Color(0xFFFFEDE6),
+                              Color(0xFFEDE9FE),
                             ],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
@@ -214,14 +214,14 @@ class ProfileScreen extends StatelessWidget {
                             Container(
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
-                                color: AppColors.cardWhite.withValues(
-                                  alpha: 0.8,
-                                ),
+                                color: AppColors.cardWhite,
                                 shape: BoxShape.circle,
+                                border: Border.all(color: AppColors.border),
                               ),
-                              child: const Text(
-                                '🪙',
-                                style: TextStyle(fontSize: 22),
+                              child: const Icon(
+                                Icons.monetization_on,
+                                color: AppColors.coral,
+                                size: 22,
                               ),
                             ),
                             const SizedBox(width: 14),
@@ -233,7 +233,7 @@ class ProfileScreen extends StatelessWidget {
                                     children: [
                                       Text(
                                         '${game.coins} Coins',
-                                        style: TextStyle(
+                                        style: const TextStyle(
                                           color: AppColors.textMain,
                                           fontWeight: FontWeight.bold,
                                           fontSize: 16,
@@ -247,26 +247,25 @@ class ProfileScreen extends StatelessWidget {
                                             vertical: 2,
                                           ),
                                           decoration: BoxDecoration(
-                                            color: AppColors.peachLight,
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
+                                            color: AppColors.coralLight,
+                                            borderRadius: BorderRadius.circular(8),
                                             border: Border.all(
-                                              color: AppColors.pastelPeach,
+                                              color: AppColors.coral,
                                             ),
                                           ),
                                           child: Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
-                                              const Text(
-                                                '🔥',
-                                                style: TextStyle(fontSize: 10),
+                                              const Icon(
+                                                Icons.local_fire_department,
+                                                size: 11,
+                                                color: AppColors.coral,
                                               ),
                                               const SizedBox(width: 2),
                                               Text(
                                                 '${game.currentStreak}d',
-                                                style: TextStyle(
-                                                  color: AppColors.peachDark,
+                                                style: const TextStyle(
+                                                  color: AppColors.coralDark,
                                                   fontWeight: FontWeight.bold,
                                                   fontSize: 10,
                                                 ),
@@ -279,7 +278,7 @@ class ProfileScreen extends StatelessWidget {
                                   const SizedBox(height: 3),
                                   Text(
                                     '${game.totalBadgesUnlocked} / 5 Badges Unlocked • View Rewards',
-                                    style: TextStyle(
+                                    style: const TextStyle(
                                       color: AppColors.textSecondary,
                                       fontSize: 12,
                                     ),
@@ -287,7 +286,7 @@ class ProfileScreen extends StatelessWidget {
                                 ],
                               ),
                             ),
-                            Icon(
+                            const Icon(
                               Icons.chevron_right,
                               color: AppColors.textSecondary,
                             ),
@@ -304,8 +303,8 @@ class ProfileScreen extends StatelessWidget {
                   context,
                   Icons.emoji_events_outlined,
                   'Achievements & Rewards',
-                  AppColors.sageLight,
-                  AppColors.sageDark,
+                  AppColors.coralLight,
+                  AppColors.coral,
                   () {
                     Navigator.push(
                       context,
@@ -355,8 +354,8 @@ class ProfileScreen extends StatelessWidget {
                   context,
                   Icons.rate_review_outlined,
                   'Feedback About the App',
-                  AppColors.peachLight,
-                  AppColors.peachDark,
+                  AppColors.yellowLight,
+                  AppColors.yellowDark,
                   () {
                     StudentFeedbackDialog.show(context);
                   },
@@ -366,8 +365,8 @@ class ProfileScreen extends StatelessWidget {
                   context,
                   Icons.info_outline,
                   'About App',
-                  AppColors.sageLight,
-                  AppColors.sageDark,
+                  AppColors.mintLight,
+                  AppColors.mintDark,
                   () {
                     showAboutDialog(
                       context: context,
