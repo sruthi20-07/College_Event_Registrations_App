@@ -200,6 +200,10 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         themeBg = AppColors.lavenderLight;
         statusIcon = Icons.admin_panel_settings_outlined;
         break;
+      case AttendanceScanStatus.sessionExpired:
+      case AttendanceScanStatus.sessionInactive:
+      case AttendanceScanStatus.notRegistered:
+      case AttendanceScanStatus.ineligible:
       case AttendanceScanStatus.invalidTicket:
       case AttendanceScanStatus.error:
         themeColor = AppColors.pinkDark;
@@ -207,6 +211,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         statusIcon = Icons.error_outline;
         break;
     }
+
 
     final reg = result.registration;
 

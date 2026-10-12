@@ -51,4 +51,7 @@ class DateFormatter {
     if (date == null) return '';
     return '${formatDate(date)}, ${formatTime(date)}';
   }
+
+  /// Alias for formatFullDateTime
+  static String formatDateTime(DateTime? date) => formatFullDateTime(date);
 }

@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -7,9 +8,12 @@ import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/registration_service.dart';
 import '../../utils/constants.dart';
-import '../../utils/csv_export_helper.dart';
 import '../../utils/date_formatter.dart';
-import 'qr_scanner_screen.dart';
+import '../../utils/excel_export_helper.dart';
+import '../../utils/web_url_launcher.dart';
+import '../../services/whatsapp_service.dart';
+import 'event_live_attendance_qr_screen.dart';
+import 'event_registration_report_screen.dart';
 
 class EventParticipantsScreen extends StatefulWidget {
   final EventModel event;
@@ -21,9 +25,11 @@ class EventParticipantsScreen extends StatefulWidget {
       _EventParticipantsScreenState();
 }
 
+
 class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
   final RegistrationService _registrationService = RegistrationService();
   final AuthService _authService = AuthService();
+  WhatsAppService get _whatsAppService => WhatsAppService();
 
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
@@ -93,20 +99,6 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
         backgroundColor: AppColors.cardWhite,
         foregroundColor: AppColors.textMain,
         elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.qr_code_scanner, color: AppColors.sageDark),
-            tooltip: 'Scan Attendance',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => QrScannerScreen(event: widget.event),
-                ),
-              );
-            },
-          ),
-        ],
       ),
       body: StreamBuilder<List<RegistrationModel>>(
         stream: _registrationService.streamEventRegistrations(widget.event.id),
@@ -279,22 +271,6 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: AppColors.primarySage,
-        foregroundColor: AppColors.sageDark,
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => QrScannerScreen(event: widget.event),
-            ),
-          );
-        },
-        icon: const Icon(Icons.qr_code_scanner),
-        label: const Text('Scan Attendance', style: TextStyle(fontWeight: FontWeight.bold)),
-      ),
     );
   }
 
@@ -303,10 +279,10 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
   Widget _buildEventSummaryBanner() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.cardWhite,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
@@ -316,33 +292,27 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: AppColors.lavenderLight,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   widget.event.category.toUpperCase(),
                   style: const TextStyle(
                     color: AppColors.lavenderDark,
                     fontWeight: FontWeight.bold,
-                    fontSize: 11,
+                    fontSize: 10,
                   ),
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: widget.event.isPublished
                       ? AppColors.sageLight
                       : AppColors.pinkLight,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   widget.event.status.toUpperCase(),
@@ -351,38 +321,45 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
                         ? AppColors.sageDark
                         : AppColors.pinkDark,
                     fontWeight: FontWeight.bold,
-                    fontSize: 11,
+                    fontSize: 10,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Text(
             widget.event.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
-              fontSize: 20,
+              fontSize: 18,
               fontWeight: FontWeight.bold,
               color: AppColors.textMain,
+              letterSpacing: -0.3,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Wrap(
-            spacing: 16,
-            runSpacing: 6,
+            spacing: 14,
+            runSpacing: 4,
             children: [
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Icon(
                     Icons.calendar_today_outlined,
-                    size: 14,
+                    size: 13,
                     color: AppColors.sageDark,
                   ),
-                  const SizedBox(width: 5),
+                  const SizedBox(width: 4),
                   Text(
                     widget.event.dateFormatted,
-                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ],
               ),
@@ -391,13 +368,17 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
                 children: [
                   const Icon(
                     Icons.location_on_outlined,
-                    size: 14,
+                    size: 13,
                     color: AppColors.peachDark,
                   ),
-                  const SizedBox(width: 5),
+                  const SizedBox(width: 4),
                   Text(
                     widget.event.venue,
-                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ],
               ),
@@ -406,10 +387,10 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
                 children: [
                   const Icon(
                     Icons.payments_outlined,
-                    size: 14,
+                    size: 13,
                     color: AppColors.skyBlueDark,
                   ),
-                  const SizedBox(width: 5),
+                  const SizedBox(width: 4),
                   Text(
                     widget.event.isPaid
                         ? 'Fee: ₹${widget.event.registrationFee.toInt()}'
@@ -418,24 +399,25 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
                       color: widget.event.isPaid
                           ? AppColors.skyBlueDark
                           : AppColors.sageDark,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
                     ),
                   ),
                 ],
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
+          // Preserved single Display Event QR button inside event summary card
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primarySage,
-                foregroundColor: AppColors.sageDark,
-                padding: const EdgeInsets.symmetric(vertical: 12),
+                backgroundColor: AppColors.lavenderLight,
+                foregroundColor: AppColors.lavenderDark,
+                padding: const EdgeInsets.symmetric(vertical: 9),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 elevation: 0,
               ),
@@ -443,14 +425,14 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => QrScannerScreen(event: widget.event),
+                    builder: (_) => EventLiveAttendanceQrScreen(event: widget.event),
                   ),
                 );
               },
-              icon: const Icon(Icons.qr_code_scanner, size: 20),
+              icon: const Icon(Icons.qr_code_2_rounded, size: 18),
               label: const Text(
-                'Scan Attendance',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                'Display Event QR',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
               ),
             ),
           ),
@@ -468,8 +450,8 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
     required int verifiedAttendees,
     required int availableSeats,
   }) {
-    final isDesktop = MediaQuery.of(context).size.width >= 800;
-    final isTablet = MediaQuery.of(context).size.width >= 600;
+    final width = MediaQuery.of(context).size.width;
+    final int crossAxisCount = width >= 800 ? 4 : (width >= 550 ? 3 : 2);
 
     final items = [
       _MetricData(
@@ -497,8 +479,8 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
         title: 'Paid Registrations',
         value: '$paidRegistrations',
         icon: Icons.paid_outlined,
-        color: AppColors.sageDark,
-        bgColor: AppColors.sageLight,
+        color: AppColors.mintDark,
+        bgColor: AppColors.mintLight,
       ),
       _MetricData(
         title: 'Pending Payments',
@@ -508,7 +490,7 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
         bgColor: AppColors.peachLight,
       ),
       _MetricData(
-        title: 'Cancelled',
+        title: 'Cancelled Registrations',
         value: '$cancelledRegistrations',
         icon: Icons.cancel_outlined,
         color: AppColors.pinkDark,
@@ -518,69 +500,73 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
         title: 'Available Seats',
         value: '$availableSeats / ${widget.event.maxSeats}',
         icon: Icons.event_seat_outlined,
-        color: availableSeats <= 0 ? AppColors.pinkDark : AppColors.textSecondary,
+        color: availableSeats <= 0 ? AppColors.pinkDark : AppColors.textMain,
         bgColor: AppColors.background,
       ),
     ];
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final crossAxisCount = isDesktop ? 4 : (isTablet ? 3 : 2);
-        return GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: items.length,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: crossAxisCount,
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
-            childAspectRatio: isDesktop ? 2.3 : (isTablet ? 2.0 : 1.7),
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: items.length,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+        mainAxisExtent: 64,
+      ),
+      itemBuilder: (context, index) {
+        final item = items[index];
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          decoration: BoxDecoration(
+            color: AppColors.cardWhite,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.border),
           ),
-          itemBuilder: (context, index) {
-            final item = items[index];
-            return Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.cardWhite,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.border),
+          child: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: item.bgColor,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(item.icon, size: 16, color: item.color),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      CircleAvatar(
-                        radius: 15,
-                        backgroundColor: item.bgColor,
-                        child: Icon(item.icon, size: 16, color: item.color),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      item.value,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: item.color,
+                        height: 1.1,
                       ),
-                      Text(
-                        item.value,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: item.color,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Text(
-                    item.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textMain,
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 1),
+                    Text(
+                      item.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
+                        height: 1.1,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            );
-          },
+            ],
+          ),
         );
       },
     );
@@ -597,16 +583,16 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
         _attendanceFilter != 'All';
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: AppColors.cardWhite,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // SEARCH FIELD
+          // COMPACT SEARCH FIELD
           TextField(
             controller: _searchController,
             onChanged: (val) {
@@ -614,12 +600,22 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
                 _searchQuery = val.trim();
               });
             },
+            style: const TextStyle(fontSize: 13),
             decoration: InputDecoration(
-              hintText: 'Search student name, roll number, email, or reg ID...',
-              prefixIcon: const Icon(Icons.search, size: 20, color: AppColors.textSecondary),
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 9,
+              ),
+              hintText: 'Search student name, roll, email, or reg ID...',
+              hintStyle: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              prefixIcon: const Icon(Icons.search, size: 18, color: AppColors.textSecondary),
+              prefixIconConstraints: const BoxConstraints(minWidth: 36, minHeight: 36),
               suffixIcon: _searchQuery.isNotEmpty
                   ? IconButton(
-                      icon: const Icon(Icons.clear, size: 18, color: AppColors.textSecondary),
+                      icon: const Icon(Icons.clear, size: 16, color: AppColors.textSecondary),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                       onPressed: () {
                         setState(() {
                           _searchController.clear();
@@ -631,40 +627,38 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
             ),
           ),
 
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
 
           // FILTER CHIPS ROW
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: 6,
+            runSpacing: 6,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              // Status Filter
               _buildFilterPopup(
                 label: 'Status: $_statusFilter',
                 currentValue: _statusFilter,
                 options: const ['All', 'Active', 'Cancelled'],
                 onSelected: (val) => setState(() => _statusFilter = val),
               ),
-
-              // Payment Filter
               _buildFilterPopup(
                 label: 'Payment: $_paymentFilter',
                 currentValue: _paymentFilter,
                 options: const ['All', 'Paid', 'Pending'],
                 onSelected: (val) => setState(() => _paymentFilter = val),
               ),
-
-              // Attendance Filter
               _buildFilterPopup(
                 label: 'Attendance: $_attendanceFilter',
                 currentValue: _attendanceFilter,
                 options: const ['All', 'Attended', 'Not Attended'],
                 onSelected: (val) => setState(() => _attendanceFilter = val),
               ),
-
               if (hasActiveFilters)
                 TextButton.icon(
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    minimumSize: const Size(0, 28),
+                  ),
                   onPressed: () {
                     setState(() {
                       _searchController.clear();
@@ -676,22 +670,22 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
                   },
                   icon: const Icon(
                     Icons.filter_alt_off,
-                    size: 16,
+                    size: 14,
                     color: AppColors.pinkDark,
                   ),
                   label: const Text(
                     'Reset',
-                    style: TextStyle(color: AppColors.pinkDark, fontSize: 12),
+                    style: TextStyle(color: AppColors.pinkDark, fontSize: 11),
                   ),
                 ),
             ],
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           const Divider(height: 1, color: AppColors.border),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
 
-          // RESULT COUNT & EXPORT CSV BUTTON
+          // RESULT COUNT & EXPORT ACTIONS
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -699,26 +693,56 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
                 'Showing ${filteredList.length} of ${allRegistrations.length} participants',
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
-                  fontSize: 12,
+                  fontSize: 11,
                   color: AppColors.textSecondary,
                 ),
               ),
               if (filteredList.isNotEmpty)
-                TextButton.icon(
-                  onPressed: () => _exportCsv(context, filteredList),
-                  icon: const Icon(
-                    Icons.download_outlined,
-                    size: 16,
-                    color: AppColors.sageDark,
-                  ),
-                  label: const Text(
-                    'Export CSV',
-                    style: TextStyle(
-                      color: AppColors.sageDark,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextButton.icon(
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        minimumSize: const Size(0, 28),
+                      ),
+                      onPressed: () => _exportExcel(context, filteredList),
+                      icon: const Icon(
+                        Icons.table_view_rounded,
+                        size: 14,
+                        color: AppColors.sageDark,
+                      ),
+                      label: const Text(
+                        'Download Excel',
+                        style: TextStyle(
+                          color: AppColors.sageDark,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 2),
+                    IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                      icon: const Icon(
+                        Icons.open_in_new_rounded,
+                        size: 15,
+                        color: AppColors.lavenderDark,
+                      ),
+                      tooltip: 'View Full Report Table',
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => EventRegistrationReportScreen(
+                              initialEvent: widget.event,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                 ),
             ],
           ),
@@ -740,29 +764,30 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
           .map(
             (opt) => PopupMenuItem<String>(
               value: opt,
+              height: 38,
               child: Row(
                 children: [
                   Icon(
                     opt == currentValue
                         ? Icons.radio_button_checked
                         : Icons.radio_button_off,
-                    size: 16,
+                    size: 15,
                     color: opt == currentValue
                         ? AppColors.sageDark
                         : AppColors.textSecondary,
                   ),
                   const SizedBox(width: 8),
-                  Text(opt),
+                  Text(opt, style: const TextStyle(fontSize: 12)),
                 ],
               ),
             ),
           )
           .toList(),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
           color: isFiltered ? AppColors.sageLight : AppColors.background,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: isFiltered ? AppColors.primarySage : AppColors.border,
           ),
@@ -773,15 +798,15 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
             Text(
               label,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: FontWeight.w600,
                 color: isFiltered ? AppColors.sageDark : AppColors.textMain,
               ),
             ),
-            const SizedBox(width: 4),
+            const SizedBox(width: 3),
             Icon(
               Icons.arrow_drop_down,
-              size: 16,
+              size: 15,
               color: isFiltered ? AppColors.sageDark : AppColors.textSecondary,
             ),
           ],
@@ -809,181 +834,185 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
     final isAttended = reg.isAttended;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
         color: AppColors.cardWhite,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.border),
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         child: InkWell(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           onTap: () => _showStudentDetailsModal(context, reg),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // TOP HEADER: NAME + ATTENDANCE TOGGLE / STATUS
+                // TOP HEADER: NAME + ROLL + EMAIL
                 Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     CircleAvatar(
-                      radius: 20,
+                      radius: 17,
                       backgroundColor: isCancelled
                           ? AppColors.pinkLight
                           : (isAttended
-                                ? AppColors.sageLight
-                                : AppColors.lavenderLight),
+                              ? AppColors.mintLight
+                              : AppColors.lavenderLight),
                       child: Icon(
                         isCancelled
                             ? Icons.cancel_outlined
                             : (isAttended
-                                  ? Icons.how_to_reg
-                                  : Icons.person_outline),
+                                ? Icons.how_to_reg_rounded
+                                : Icons.person_outline_rounded),
                         color: isCancelled
                             ? AppColors.pinkDark
                             : (isAttended
-                                  ? AppColors.sageDark
-                                  : AppColors.lavenderDark),
-                        size: 20,
+                                ? AppColors.mintDark
+                                : AppColors.lavenderDark),
+                        size: 18,
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            studentName,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textMain,
-                            ),
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  studentName,
+                                  style: const TextStyle(
+                                    fontSize: 14.5,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.textMain,
+                                    letterSpacing: -0.2,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                rollNumber,
+                                style: const TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 1),
                           Text(
-                            'Roll: $rollNumber • $department ($year)',
+                            '$department • $year • $collegeEmail',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textMain,
-                            ),
-                          ),
-                          Text(
-                            collegeEmail,
-                            style: const TextStyle(
-                              fontSize: 12,
+                              fontSize: 11,
                               color: AppColors.textSecondary,
                             ),
                           ),
                         ],
                       ),
                     ),
-                  ],
-                ),
-
-                const SizedBox(height: 10),
-
-                // REG ID & DATE ROW
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.badge_outlined,
-                      size: 14,
-                      color: AppColors.textSecondary,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      formattedRegId,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textMain,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    const Icon(
-                      Icons.calendar_today_outlined,
-                      size: 14,
-                      color: AppColors.textSecondary,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      regDate,
-                      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 12),
-                const Divider(height: 1, color: AppColors.border),
-                const SizedBox(height: 10),
-
-                // BADGES & ACTIONS ROW
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // BADGES WRAP
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
-                      children: [
-                        // Registration Status Badge
-                        _buildStatusBadge(
-                          label: isCancelled ? 'CANCELLED' : 'ACTIVE',
-                          color: isCancelled
-                              ? AppColors.pinkDark
-                              : AppColors.lavenderDark,
-                          bgColor: isCancelled
-                              ? AppColors.pinkLight
-                              : AppColors.lavenderLight,
-                        ),
-
-                        // Payment Status Badge
-                        _buildStatusBadge(
-                          label: isPaid
-                              ? 'PAID ✓'
-                              : (widget.event.isPaid ? 'PENDING' : 'FREE'),
-                          color: isPaid
-                              ? AppColors.sageDark
-                              : (widget.event.isPaid
-                                    ? AppColors.peachDark
-                                    : AppColors.skyBlueDark),
-                          bgColor: isPaid
-                              ? AppColors.sageLight
-                              : (widget.event.isPaid
-                                    ? AppColors.peachLight
-                                    : AppColors.skyBlueLight),
-                        ),
-
-                        // Attendance Status Badge
-                        _buildStatusBadge(
-                          label: isAttended ? 'ATTENDED ✓' : 'NOT ATTENDED',
-                          color: isAttended
-                              ? AppColors.skyBlueDark
-                              : AppColors.textSecondary,
-                          bgColor: isAttended
-                              ? AppColors.skyBlueLight
-                              : AppColors.background,
-                        ),
-                      ],
-                    ),
-
-                    // Quick Toggle Attendance Action
+                    // Quick Attendance Toggle Action
                     IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                       icon: Icon(
                         isAttended
-                            ? Icons.check_box
-                            : Icons.check_box_outline_blank,
-                        color: isAttended ? AppColors.sageDark : AppColors.textSecondary,
+                            ? Icons.check_circle_rounded
+                            : Icons.radio_button_unchecked_rounded,
+                        color: isAttended
+                            ? AppColors.mintDark
+                            : AppColors.textSecondary.withValues(alpha: 0.5),
+                        size: 22,
                       ),
                       tooltip: isAttended
                           ? 'Mark as Not Attended'
                           : 'Verify & Mark as Attended',
                       onPressed: () => _toggleAttendance(reg),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 8),
+                const Divider(height: 1, color: AppColors.border),
+                const SizedBox(height: 7),
+
+                // 1. STATUS BADGES & WHATSAPP STATUS ROW (Bounded Wrap, wraps without overflow)
+                Wrap(
+                  spacing: 5,
+                  runSpacing: 4,
+                  children: [
+                    _buildStatusBadge(
+                      label: isCancelled ? 'CANCELLED' : 'ACTIVE',
+                      color: isCancelled
+                          ? AppColors.pinkDark
+                          : AppColors.lavenderDark,
+                      bgColor: isCancelled
+                          ? AppColors.pinkLight
+                          : AppColors.lavenderLight,
+                    ),
+                    _buildStatusBadge(
+                      label: isPaid
+                          ? 'PAID ✓'
+                          : (widget.event.isPaid ? 'PENDING' : 'FREE'),
+                      color: isPaid
+                          ? AppColors.mintDark
+                          : (widget.event.isPaid
+                              ? AppColors.peachDark
+                              : AppColors.skyBlueDark),
+                      bgColor: isPaid
+                          ? AppColors.mintLight
+                          : (widget.event.isPaid
+                              ? AppColors.peachLight
+                              : AppColors.skyBlueLight),
+                    ),
+                    _buildStatusBadge(
+                      label: isAttended ? 'ATTENDED ✓' : 'NOT ATTENDED',
+                      color: isAttended
+                          ? AppColors.mintDark
+                          : AppColors.yellowDark,
+                      bgColor: isAttended
+                          ? AppColors.mintLight
+                          : AppColors.yellowLight,
+                    ),
+                    // WhatsApp Registration Status Badge
+                    _buildWhatsAppStatusBadge(reg.whatsappStatus),
+                  ],
+                ),
+
+                const SizedBox(height: 8),
+
+                // 2. FOOTER ROW: REG ID + COMPACT SEND WHATSAPP ACTION BUTTON + CHEVRON
+                Row(
+                  children: [
+                    // REG ID & DATE (Flexibly truncates with ellipsis on small screens)
+                    Expanded(
+                      child: Text(
+                        '$formattedRegId • $regDate',
+                        style: const TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textSecondary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    // COMPACT SEND WHATSAPP ACTION BUTTON
+                    _buildSendWhatsAppCompactButton(reg),
+                    const SizedBox(width: 4),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      size: 16,
+                      color: AppColors.textSecondary,
                     ),
                   ],
                 ),
@@ -1001,17 +1030,116 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
     required Color bgColor,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
         label,
         style: TextStyle(
-          fontSize: 10,
+          fontSize: 9.5,
           fontWeight: FontWeight.bold,
           color: color,
+        ),
+      ),
+    );
+  }
+
+  /// Compact status badge displaying: Not Sent / WhatsApp Opened / Awaiting Admin Confirmation / Admin Confirmed Sent
+  Widget _buildWhatsAppStatusBadge(String status) {
+    final normalized = status.toLowerCase().trim();
+    String label;
+    Color color;
+    Color bgColor;
+
+    if (normalized == 'admin_confirmed_sent') {
+      label = 'WA: Confirmed Sent ✓';
+      color = AppColors.mintDark;
+      bgColor = AppColors.mintLight;
+    } else if (normalized == 'awaiting_confirmation' ||
+        normalized == 'ready_to_share') {
+      label = 'WA: Awaiting Confirm ⏳';
+      color = AppColors.peachDark;
+      bgColor = AppColors.peachLight;
+    } else {
+      label = 'WA: Not Sent';
+      color = AppColors.textSecondary;
+      bgColor = AppColors.background;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.chat_bubble_outline_rounded,
+            size: 9.5,
+            color: color,
+          ),
+          const SizedBox(width: 3),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 9.5,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Compact WhatsApp action button next to student registration details
+  Widget _buildSendWhatsAppCompactButton(RegistrationModel reg) {
+    final isConfirmed = reg.whatsappStatus == 'admin_confirmed_sent';
+    final isAwaiting = reg.whatsappStatus == 'awaiting_confirmation' ||
+        reg.whatsappStatus == 'ready_to_share';
+
+    final Color primaryColor = isConfirmed
+        ? AppColors.mintDark
+        : (isAwaiting ? AppColors.peachDark : const Color(0xFF1EBE5D));
+    final Color bgColor = isConfirmed
+        ? AppColors.mintLight
+        : (isAwaiting ? AppColors.peachLight : const Color(0xFFE8F5E9));
+
+    return InkWell(
+      onTap: () => _handleSendRegistrationWhatsApp(reg),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: primaryColor.withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.chat_rounded,
+              size: 11.5,
+              color: primaryColor,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              isConfirmed
+                  ? 'Resend WA'
+                  : (isAwaiting ? 'Confirm WA' : 'Send WA'),
+              style: TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.bold,
+                color: primaryColor,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1307,9 +1435,9 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
 
                     const SizedBox(height: 16),
 
-                    // SECTION 5: WHATSAPP CONFIRMATION & TICKET NOTIFICATION
+                    // SECTION 5: WHATSAPP REGISTRATION CONFIRMATION (ADMIN FLOW)
                     const Text(
-                      'WhatsApp Confirmation & Ticket',
+                      'WhatsApp Registration Confirmation',
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
@@ -1317,57 +1445,158 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    _modalRow(
-                      'Consent Status',
-                      reg.whatsappConsent
-                          ? 'AGREED / CONSENTED ✓'
-                          : 'NOT CONSENTED',
-                      valueColor: reg.whatsappConsent
-                          ? AppColors.sageDark
-                          : AppColors.peachDark,
+                    StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                      stream: FirebaseFirestore.instance
+                          .collection('registrations')
+                          .doc(reg.id)
+                          .snapshots(),
+                      builder: (context, regSnap) {
+                        final data = regSnap.data?.data() ?? {};
+                        final currentStatus = (data['whatsappStatus'] as String? ?? reg.whatsappStatus).trim();
+                        final isConfirmed = currentStatus == 'admin_confirmed_sent';
+                        final isAwaiting = currentStatus == 'awaiting_confirmation' || currentStatus == 'ready_to_share';
+                        final confirmedAdminUid = (data['whatsappConfirmedByAdminUid'] as String? ?? reg.whatsappConfirmedByAdminUid).trim();
+                        final confirmedTimestamp = data['whatsappConfirmedAt'] != null
+                            ? DateFormatter.parseDateTime(data['whatsappConfirmedAt'])
+                            : reg.whatsappConfirmedAt;
+                        final currentPhone = (data['whatsappNumber'] as String? ?? reg.whatsappNumber).isNotEmpty
+                            ? (data['whatsappNumber'] as String? ?? reg.whatsappNumber)
+                            : (reg.phone.isNotEmpty ? reg.phone : phone);
+
+                        String statusLabel;
+                        Color statusColor;
+                        if (isConfirmed) {
+                          statusLabel = 'ADMIN CONFIRMED SENT ✓';
+                          statusColor = AppColors.mintDark;
+                        } else if (isAwaiting) {
+                          statusLabel = 'WHATSAPP OPENED / AWAITING CONFIRMATION ⏳';
+                          statusColor = AppColors.peachDark;
+                        } else {
+                          statusLabel = 'NOT SENT';
+                          statusColor = AppColors.textSecondary;
+                        }
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _modalRow(
+                              'Recipient Mobile',
+                              currentPhone.isNotEmpty ? currentPhone : 'Not provided',
+                            ),
+                            _modalRow(
+                              'Confirmation Status',
+                              statusLabel,
+                              valueColor: statusColor,
+                            ),
+                            if (isConfirmed && confirmedAdminUid.isNotEmpty)
+                              _modalRow(
+                                'Confirmed By Admin UID',
+                                confirmedAdminUid,
+                              ),
+                            if (isConfirmed && confirmedTimestamp != null)
+                              _modalRow(
+                                'Confirmed At',
+                                DateFormatter.formatDate(confirmedTimestamp),
+                              ),
+
+                            const SizedBox(height: 12),
+
+                            // MAIN ACTION: SEND / RESEND REGISTRATION WHATSAPP
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                onPressed: () async {
+                                  Navigator.pop(ctx);
+                                  await _handleSendRegistrationWhatsApp(reg);
+                                },
+                                icon: const Icon(Icons.chat_rounded, size: 18),
+                                label: Text(
+                                  isConfirmed
+                                      ? 'Resend Registration WhatsApp'
+                                      : 'Send Registration WhatsApp',
+                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: isConfirmed ? AppColors.mintDark : const Color(0xFF1EBE5D),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                              ),
+                            ),
+
+                            // QUICK ACTION ROW IF AWAITING CONFIRMATION
+                            if (isAwaiting) ...[
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      onPressed: () async {
+                                        final adminUid = _authService.currentUid ?? 'admin';
+                                        await _whatsAppService.recordAdminConfirmation(
+                                          registrationId: reg.id,
+                                          eventId: widget.event.id,
+                                          studentId: reg.studentId,
+                                          studentName: studentName,
+                                          eventTitle: widget.event.title,
+                                          phone: currentPhone,
+                                          adminUid: adminUid,
+                                          wasSent: true,
+                                        );
+                                        if (ctx.mounted) Navigator.pop(ctx);
+                                      },
+                                      icon: const Icon(Icons.check_circle_rounded, size: 16),
+                                      label: const Text('Confirm Sent'),
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: AppColors.mintDark,
+                                        side: const BorderSide(color: AppColors.mintDark),
+                                        padding: const EdgeInsets.symmetric(vertical: 10),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      onPressed: () async {
+                                        final adminUid = _authService.currentUid ?? 'admin';
+                                        await _whatsAppService.recordAdminConfirmation(
+                                          registrationId: reg.id,
+                                          eventId: widget.event.id,
+                                          studentId: reg.studentId,
+                                          studentName: studentName,
+                                          eventTitle: widget.event.title,
+                                          phone: currentPhone,
+                                          adminUid: adminUid,
+                                          wasSent: false,
+                                        );
+                                        if (ctx.mounted) Navigator.pop(ctx);
+                                      },
+                                      icon: const Icon(Icons.cancel_outlined, size: 16),
+                                      label: const Text('Mark Not Sent'),
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: AppColors.pinkDark,
+                                        side: const BorderSide(color: AppColors.pinkDark),
+                                        padding: const EdgeInsets.symmetric(vertical: 10),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
+                        );
+                      },
                     ),
-                    _modalRow(
-                      'WhatsApp Number',
-                      reg.whatsappNumber.isNotEmpty
-                          ? reg.whatsappNumber
-                          : (reg.phone.isNotEmpty
-                              ? reg.phone
-                              : 'Not provided'),
-                    ),
-                    _modalRow(
-                      'Delivery Mode',
-                      reg.whatsappDeliveryMode.isNotEmpty
-                          ? (reg.whatsappDeliveryMode == 'manual'
-                              ? 'Mode A: Quick Share'
-                              : 'Mode B: Cloud API')
-                          : 'Not initiated',
-                    ),
-                    _modalRow(
-                      'Notification Status',
-                      reg.whatsappStatus.isNotEmpty
-                          ? reg.whatsappStatus
-                              .replaceAll('_', ' ')
-                              .toUpperCase()
-                          : 'NONE',
-                      valueColor: reg.whatsappStatus == 'delivered' ||
-                              reg.whatsappStatus == 'accepted' ||
-                              reg.whatsappStatus == 'ready_to_share'
-                          ? AppColors.sageDark
-                          : (reg.whatsappStatus == 'failed'
-                              ? AppColors.pinkDark
-                              : AppColors.lavenderDark),
-                    ),
-                    if (reg.whatsappSentAt != null)
-                      _modalRow(
-                        'Last Attempt At',
-                        DateFormatter.formatDate(reg.whatsappSentAt!),
-                      ),
-                    if (reg.whatsappError.isNotEmpty)
-                      _modalRow(
-                        'Last Diagnostic Note',
-                        reg.whatsappError,
-                        valueColor: AppColors.pinkDark,
-                      ),
 
                     const SizedBox(height: 20),
                   ],
@@ -1405,6 +1634,378 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
   }
 
   // --- ACTIONS & HELPERS ---
+
+  /// Primary demonstration flow: manual WhatsApp handoff + explicit admin verification
+  Future<void> _handleSendRegistrationWhatsApp(RegistrationModel reg) async {
+    final profile = _userProfileCache[reg.studentId];
+    final studentName = _resolveField(reg.studentName, profile?.name).trim().isNotEmpty
+        ? _resolveField(reg.studentName, profile?.name).trim()
+        : 'Student';
+    final eventTitle = widget.event.title.trim().isNotEmpty
+        ? widget.event.title.trim()
+        : (reg.eventTitle.trim().isNotEmpty ? reg.eventTitle.trim() : 'Event');
+
+    String rawPhone = reg.whatsappNumber.trim().isNotEmpty
+        ? reg.whatsappNumber.trim()
+        : (reg.phone.trim().isNotEmpty
+            ? reg.phone.trim()
+            : (profile?.whatsappNumber ?? '').trim());
+
+    String cleanPhone = WhatsAppService.normalizeForWaMe(rawPhone);
+
+    // If phone number is missing or invalid, prompt admin for valid phone
+    if (cleanPhone.isEmpty || !WhatsAppService.isValidPhoneNumber(cleanPhone)) {
+      final inputPhone = await _showPhoneInputDialog(
+        context: context,
+        studentName: studentName,
+        initialPhone: rawPhone,
+      );
+      if (inputPhone == null || inputPhone.trim().isEmpty) {
+        return; // Admin cancelled
+      }
+      cleanPhone = WhatsAppService.normalizeForWaMe(inputPhone);
+      if (!WhatsAppService.isValidPhoneNumber(cleanPhone)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Invalid phone number format. Please include country code and digits.'),
+              backgroundColor: AppColors.pinkDark,
+            ),
+          );
+        }
+        return;
+      }
+    }
+
+    final formattedRegId = reg.id.length > 8
+        ? 'REG-${reg.id.substring(0, 8).toUpperCase()}'
+        : 'REG-${reg.id.toUpperCase()}';
+
+    // 3. Prepare personalized registration confirmation message with attendance instructions:
+    final messageText = WhatsAppService.buildTicketMessage(
+      registration: reg,
+      event: widget.event,
+    );
+
+    final encodedMessage = Uri.encodeComponent(messageText);
+    final waUrl = 'https://wa.me/$cleanPhone?text=$encodedMessage';
+
+    // 4. Mark status as WhatsApp Opened / Awaiting Admin Confirmation in Firestore
+    final now = DateTime.now();
+    await FirebaseFirestore.instance.collection('registrations').doc(reg.id).update({
+      'whatsappStatus': 'awaiting_confirmation',
+      'whatsappDeliveryMode': 'manual_admin',
+      'whatsappSentAt': Timestamp.fromDate(now),
+      'whatsappNumber': '+$cleanPhone',
+    }).catchError((_) {});
+
+    // Open WhatsApp with prefilled message
+    try {
+      await PlatformUrlLauncher.open(waUrl);
+    } catch (e) {
+      debugPrint('Error launching WhatsApp: $e');
+    }
+
+    if (!mounted) return;
+
+    // 6. Explicit confirmation dialog:
+    // "Did you send the WhatsApp confirmation to this student for this event?"
+    // Buttons: Yes, Message Sent and Not Sent
+    final bool? wasSent = await _showAdminSentConfirmationDialog(
+      context: context,
+      studentName: studentName,
+      eventTitle: eventTitle,
+      regId: formattedRegId,
+      cleanPhone: cleanPhone,
+    );
+
+    if (!mounted) return;
+
+    final adminUid = _authService.currentUid ?? 'admin';
+
+    // 7. Only if Yes, Message Sent selected, record admin confirmation
+    if (wasSent == true) {
+      await _whatsAppService.recordAdminConfirmation(
+        registrationId: reg.id,
+        eventId: widget.event.id,
+        studentId: reg.studentId,
+        studentName: studentName,
+        eventTitle: eventTitle,
+        phone: cleanPhone,
+        adminUid: adminUid,
+        wasSent: true,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('WhatsApp confirmation recorded for $studentName.'),
+            backgroundColor: AppColors.mintDark,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } else {
+      // 8. If Not Sent, closed, or cancelled, do not mark as sent
+      await _whatsAppService.recordAdminConfirmation(
+        registrationId: reg.id,
+        eventId: widget.event.id,
+        studentId: reg.studentId,
+        studentName: studentName,
+        eventTitle: eventTitle,
+        phone: cleanPhone,
+        adminUid: adminUid,
+        wasSent: false,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('WhatsApp status marked as Not Sent.'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<bool?> _showAdminSentConfirmationDialog({
+    required BuildContext context,
+    required String studentName,
+    required String eventTitle,
+    required String regId,
+    required String cleanPhone,
+  }) {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          backgroundColor: AppColors.cardWhite,
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F5E9),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.chat_bubble_outline_rounded,
+                  color: Color(0xFF1EBE5D),
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'WhatsApp Confirmation',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textMain,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Did you send the WhatsApp confirmation to this student for this event?',
+                style: TextStyle(
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textMain,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.lavenderLight,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Text(
+                          'Student: ',
+                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        ),
+                        Expanded(
+                          child: Text(
+                            studentName,
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textMain,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Text(
+                          'Event: ',
+                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        ),
+                        Expanded(
+                          child: Text(
+                            eventTitle,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textMain,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Text(
+                          'Phone: ',
+                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        ),
+                        Text(
+                          '+$cleanPhone',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Text(
+                          'Ref ID: ',
+                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        ),
+                        Text(
+                          regId,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.lavenderDark,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Your confirmation will be recorded with timestamp and admin UID in registration audit records.',
+                style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx, false),
+              child: const Text(
+                'Not Sent',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1EBE5D),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                elevation: 0,
+              ),
+              onPressed: () => Navigator.pop(dialogCtx, true),
+              child: const Text(
+                'Yes, Message Sent',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<String?> _showPhoneInputDialog({
+    required BuildContext context,
+    required String studentName,
+    required String initialPhone,
+  }) {
+    final phoneController = TextEditingController(text: initialPhone);
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          backgroundColor: AppColors.cardWhite,
+          title: const Text(
+            'Enter Contact Number',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Please enter $studentName\'s WhatsApp mobile number (with country code):',
+                style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: phoneController,
+                keyboardType: TextInputType.phone,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: '+919876543210 or 9876543210',
+                  hintStyle: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                  prefixIcon: const Icon(Icons.phone_rounded, size: 18, color: AppColors.textSecondary),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, null),
+              child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.mintDark,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                elevation: 0,
+              ),
+              onPressed: () => Navigator.pop(ctx, phoneController.text.trim()),
+              child: const Text('Continue'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   Future<void> _toggleAttendance(RegistrationModel reg) async {
     final newStatus = !reg.isAttended;
@@ -1455,21 +2056,55 @@ class _EventParticipantsScreenState extends State<EventParticipantsScreen> {
     );
   }
 
-  Future<void> _exportCsv(
+  Future<void> _exportExcel(
     BuildContext context,
     List<RegistrationModel> registrations,
   ) async {
-    await CsvExportHelper.copyCsvToClipboard(registrations);
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Participant CSV copied to clipboard! ✓'),
-        backgroundColor: AppColors.sageDark,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
+    try {
+      final fileName = ExcelExportHelper.getSafeFileName(
+        eventTitle: widget.event.title,
+        eventId: widget.event.id,
+      );
+      final resultMessage = await ExcelExportHelper.downloadRegistrationsExcel(
+        registrations: registrations,
+        eventTitle: widget.event.title,
+        eventId: widget.event.id,
+        eventNamesById: {widget.event.id: widget.event.title},
+      );
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle_outline, color: Colors.white),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  resultMessage.isNotEmpty
+                      ? '$resultMessage ✓'
+                      : 'Downloaded $fileName successfully! ✓',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: AppColors.sageDark,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to download Excel: $e'),
+          backgroundColor: AppColors.pinkDark,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
+
 
   Widget _buildEmptyEventState() {
     return Center(

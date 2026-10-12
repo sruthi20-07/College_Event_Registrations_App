@@ -79,28 +79,40 @@ class BadgeDefinition {
 
 class GamificationModel {
   final String studentId;
-  final int coins;
+  final int coins; // spendable coin balance
+  final int lifetimeCoins; // lifetime coins earned (used for rankings and achievements)
   final int totalEventsAttended;
   final int currentStreak;
   final int longestStreak;
   final String lastAttendedDate; // YYYY-MM-DD
   final List<String> distinctAttendedDates;
   final Map<String, DateTime> unlockedBadges; // badgeId -> unlockedAt
+  final String referralCode;
+  final String referredBy;
   final DateTime updatedAt;
 
   GamificationModel({
     required this.studentId,
     this.coins = 0,
+    int? lifetimeCoins,
     this.totalEventsAttended = 0,
     this.currentStreak = 0,
     this.longestStreak = 0,
     this.lastAttendedDate = '',
     List<String>? distinctAttendedDates,
     Map<String, DateTime>? unlockedBadges,
+    String? referralCode,
+    this.referredBy = '',
     DateTime? updatedAt,
-  }) : distinctAttendedDates = distinctAttendedDates ?? const [],
-       unlockedBadges = unlockedBadges ?? const {},
-       updatedAt = updatedAt ?? DateTime.now();
+  })  : lifetimeCoins = lifetimeCoins ??
+            (coins > totalEventsAttended * 50 ? coins : totalEventsAttended * 50),
+        distinctAttendedDates = distinctAttendedDates ?? const [],
+        unlockedBadges = unlockedBadges ?? const {},
+        referralCode = referralCode ??
+            (studentId.isNotEmpty
+                ? 'CAMPUS-${studentId.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toUpperCase().padRight(6, 'X').substring(0, 6)}'
+                : ''),
+        updatedAt = updatedAt ?? DateTime.now();
 
   bool isBadgeUnlocked(String badgeId) => unlockedBadges.containsKey(badgeId);
 
@@ -164,15 +176,29 @@ class GamificationModel {
       }
     }
 
+    final int spendable = (map['coins'] ?? 0) as int;
+    final int attended = (map['totalEventsAttended'] ?? 0) as int;
+    final int fallbackLifetime = spendable > attended * 50 ? spendable : attended * 50;
+    final int lifetime = (map['lifetimeCoins'] ?? fallbackLifetime) as int;
+
+    String refCode = map['referralCode'] as String? ?? '';
+    if (refCode.isEmpty && studentId.isNotEmpty) {
+      final clean = studentId.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toUpperCase();
+      refCode = clean.length >= 6 ? 'CAMPUS-${clean.substring(0, 6)}' : 'CAMPUS-${clean.padRight(6, 'X')}';
+    }
+
     return GamificationModel(
       studentId: studentId,
-      coins: (map['coins'] ?? 0) as int,
-      totalEventsAttended: (map['totalEventsAttended'] ?? 0) as int,
+      coins: spendable,
+      lifetimeCoins: lifetime,
+      totalEventsAttended: attended,
       currentStreak: (map['currentStreak'] ?? 0) as int,
       longestStreak: (map['longestStreak'] ?? 0) as int,
       lastAttendedDate: map['lastAttendedDate'] as String? ?? '',
       distinctAttendedDates: dates,
       unlockedBadges: badges,
+      referralCode: refCode,
+      referredBy: map['referredBy'] as String? ?? '',
       updatedAt: DateFormatter.parseDateTime(map['updatedAt']),
     );
   }
@@ -192,14 +218,48 @@ class GamificationModel {
     return {
       'studentId': studentId,
       'coins': coins,
+      'lifetimeCoins': lifetimeCoins,
       'totalEventsAttended': totalEventsAttended,
       'currentStreak': currentStreak,
       'longestStreak': longestStreak,
       'lastAttendedDate': lastAttendedDate,
       'distinctAttendedDates': distinctAttendedDates,
       'unlockedBadges': badgesMap,
+      'referralCode': referralCode,
+      'referredBy': referredBy,
       'updatedAt': Timestamp.fromDate(updatedAt),
     };
+  }
+
+  GamificationModel copyWith({
+    String? studentId,
+    int? coins,
+    int? lifetimeCoins,
+    int? totalEventsAttended,
+    int? currentStreak,
+    int? longestStreak,
+    String? lastAttendedDate,
+    List<String>? distinctAttendedDates,
+    Map<String, DateTime>? unlockedBadges,
+    String? referralCode,
+    String? referredBy,
+    DateTime? updatedAt,
+  }) {
+    return GamificationModel(
+      studentId: studentId ?? this.studentId,
+      coins: coins ?? this.coins,
+      lifetimeCoins: lifetimeCoins ?? this.lifetimeCoins,
+      totalEventsAttended: totalEventsAttended ?? this.totalEventsAttended,
+      currentStreak: currentStreak ?? this.currentStreak,
+      longestStreak: longestStreak ?? this.longestStreak,
+      lastAttendedDate: lastAttendedDate ?? this.lastAttendedDate,
+      distinctAttendedDates:
+          distinctAttendedDates ?? this.distinctAttendedDates,
+      unlockedBadges: unlockedBadges ?? this.unlockedBadges,
+      referralCode: referralCode ?? this.referralCode,
+      referredBy: referredBy ?? this.referredBy,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
   }
 }
 

@@ -51,7 +51,7 @@ class WhatsAppApiResult {
 }
 
 class WhatsAppService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  FirebaseFirestore get _firestore => FirebaseFirestore.instance;
 
   CollectionReference<Map<String, dynamic>> get _notificationLogs =>
       _firestore.collection('notification_logs');
@@ -93,27 +93,95 @@ class WhatsAppService {
   }
 
   /// Builds formatted registration confirmation message using real event and student details
+  /// explicitly instructing students to scan the official attendance QR code at the venue.
   static String buildTicketMessage({
     required RegistrationModel registration,
     required EventModel event,
   }) {
+    final String studentName = registration.studentName.trim().isNotEmpty
+        ? registration.studentName.trim()
+        : 'Student';
+
+    final String eventName = event.title.trim().isNotEmpty
+        ? event.title.trim()
+        : (registration.eventTitle.trim().isNotEmpty
+            ? registration.eventTitle.trim()
+            : 'Event');
+
+    final String eventDate = event.dateFormatted.trim().isNotEmpty
+        ? event.dateFormatted.trim()
+        : (registration.eventDate.trim().isNotEmpty
+            ? registration.eventDate.trim()
+            : 'Event Date');
+
+    final String eventTime = event.time.trim().isNotEmpty
+        ? event.time.trim()
+        : '10:00 AM - 4:00 PM';
+
+    final String eventVenue = event.venue.trim().isNotEmpty
+        ? event.venue.trim()
+        : (registration.venue.trim().isNotEmpty
+            ? registration.venue.trim()
+            : 'College Campus');
+
+    final String regIdRaw = registration.id.trim().toUpperCase();
+    final String registrationId = regIdRaw.startsWith('REG-')
+        ? regIdRaw
+        : (regIdRaw.length > 8 ? 'REG-${regIdRaw.substring(0, 8)}' : 'REG-$regIdRaw');
+
+    return 'Hello $studentName! \n\n'
+    'Your registration for $eventName is confirmed! \n\n'
+    'Event: $eventName\n'
+    'Date: $eventDate\n'
+    'Time: $eventTime\n'
+    'Venue: $eventVenue\n'
+    'Registration ID: $registrationId\n\n'
+    'IMPORTANT — ATTENDANCE:\n'
+    'Please attend the event and scan the official attendance QR code '
+    'displayed at the venue using the College Event App to get your '
+    'attendance marked as present.\n\n'
+    'Registration confirmation alone does not mark you as present.\n\n'
+    'Thank you!';
+  }
+
+  /// Formats the admin confirmation message; delegates directly to buildTicketMessage
+  static String buildAdminConfirmationMessage({
+    required RegistrationModel registration,
+    required EventModel event,
+  }) {
+    return buildTicketMessage(
+      registration: registration,
+      event: event,
+    );
+  }
+
+  /// Constructs Meta WhatsApp Cloud API template payload conforming to official specifications
+  static Map<String, dynamic> buildTemplatePayload({
+    required RegistrationModel registration,
+    required EventModel event,
+    String templateName = 'event_registration_confirmation',
+  }) {
+    final cleanPhone = normalizeForWaMe(
+      registration.whatsappNumber.isNotEmpty
+          ? registration.whatsappNumber
+          : registration.phone,
+    );
+
     final String studentName = registration.studentName.isNotEmpty
         ? registration.studentName
         : 'Student';
-
-    final String eventTitle = event.title.isNotEmpty
-        ? event.title
-        : registration.eventTitle;
-
+    final String eventTitle =
+        event.title.isNotEmpty ? event.title : registration.eventTitle;
     final String eventDate = event.dateFormatted.isNotEmpty
         ? event.dateFormatted
         : registration.eventDate;
-
-    final String eventTime = event.time.isNotEmpty ? event.time : '10:00 AM - 4:00 PM';
-
+    final String eventTime =
+        event.time.isNotEmpty ? event.time : '10:00 AM - 4:00 PM';
     final String venue = event.venue.isNotEmpty
         ? event.venue
-        : (registration.venue.isNotEmpty ? registration.venue : 'College Campus');
+        : (registration.venue.isNotEmpty
+            ? registration.venue
+            : 'College Campus');
 
     final String formattedRegId = registration.id.length > 8
         ? 'REG-${registration.id.substring(0, 8).toUpperCase()}'
@@ -123,16 +191,30 @@ class WhatsAppService {
         ? registration.ticketToken
         : formattedRegId;
 
-    return 'Hello $studentName!\n\n'
-        'Your registration for $eventTitle is confirmed.\n\n'
-        'Event: $eventTitle\n'
-        'Date: $eventDate\n'
-        'Time: $eventTime\n'
-        'Venue: $venue\n'
-        'Registration ID: $formattedRegId\n'
-        'Ticket ID: $ticketId\n\n'
-        'Please open your event ticket in the College Event App and present your QR code at the entrance.\n\n'
-        'Thank you!';
+    return {
+      'messaging_product': 'whatsapp',
+      'recipient_type': 'individual',
+      'to': cleanPhone,
+      'type': 'template',
+      'template': {
+        'name': templateName,
+        'language': {'code': 'en_US'},
+        'components': [
+          {
+            'type': 'body',
+            'parameters': [
+              {'type': 'text', 'text': studentName},
+              {'type': 'text', 'text': eventTitle},
+              {'type': 'text', 'text': eventDate},
+              {'type': 'text', 'text': eventTime},
+              {'type': 'text', 'text': venue},
+              {'type': 'text', 'text': formattedRegId},
+              {'type': 'text', 'text': ticketId},
+            ],
+          },
+        ],
+      },
+    };
   }
 
   /// MODE A: Quick Demo / Manual WhatsApp Handoff via wa.me link
@@ -332,16 +414,201 @@ class WhatsAppService {
     }
   }
 
+  /// Automatically enqueues a WhatsApp Cloud API notification after registration is confirmed.
+  /// Ensures idempotency so duplicate triggers do not send multiple messages.
+  Future<WhatsAppApiResult> queueAutomatedNotification({
+    required RegistrationModel registration,
+    EventModel? event,
+  }) async {
+    // 1. Consent verification
+    if (!registration.whatsappConsent) {
+      if (registration.id.isNotEmpty) {
+        await _registrations.doc(registration.id).update({
+          'whatsappStatus': 'no_consent',
+          'whatsappError': 'Student has not consented to WhatsApp notifications.',
+        }).catchError((_) {});
+      }
+      return WhatsAppApiResult.noConsent();
+    }
+
+    // 2. Validate recipient phone number
+    final String targetNumber = registration.whatsappNumber.isNotEmpty
+        ? registration.whatsappNumber
+        : registration.phone;
+    final String cleanNumber = normalizeForWaMe(targetNumber);
+
+    if (cleanNumber.isEmpty || !isValidPhoneNumber(cleanNumber)) {
+      if (registration.id.isNotEmpty) {
+        await _registrations.doc(registration.id).update({
+          'whatsappStatus': 'invalid_phone',
+          'whatsappError': 'Invalid or missing contact phone number for WhatsApp confirmation.',
+        }).catchError((_) {});
+      }
+      return const WhatsAppApiResult(
+        success: false,
+        status: 'invalid_phone',
+        message: 'Invalid or missing contact phone number for WhatsApp confirmation.',
+      );
+    }
+
+    // 3. Validate payment status for paid events
+    if (registration.amount > 0 && !registration.isPaid) {
+      if (registration.id.isNotEmpty) {
+        await _registrations.doc(registration.id).update({
+          'whatsappStatus': 'payment_pending',
+          'whatsappError': 'Registration payment is pending. Notification deferred.',
+        }).catchError((_) {});
+      }
+      return const WhatsAppApiResult(
+        success: false,
+        status: 'payment_pending',
+        message: 'Registration payment is pending. Notification deferred.',
+      );
+    }
+
+    // 4. Deterministic Idempotency Key
+    final String logId = '${registration.id}_cloud_wa';
+    final DateTime now = DateTime.now();
+
+    try {
+      final docRef = _notificationLogs.doc(logId);
+      final docSnap = await docRef.get();
+
+      if (docSnap.exists) {
+        final existingStatus = docSnap.data()?['status'] as String? ?? '';
+        // If already pending, processing, accepted, sent, delivered, or read, prevent duplicate send
+        if (const ['pending', 'processing', 'accepted', 'sent', 'delivered', 'read']
+            .contains(existingStatus)) {
+          return WhatsAppApiResult(
+            success: true,
+            status: existingStatus,
+            message: 'WhatsApp notification is already $existingStatus for this registration.',
+          );
+        }
+      }
+
+      int attemptCount = 1;
+      if (docSnap.exists) {
+        attemptCount =
+            ((docSnap.data()?['attemptCount'] as num?)?.toInt() ?? 1) + 1;
+      }
+
+      final notificationLog = WhatsAppNotificationModel(
+        id: logId,
+        registrationId: registration.id,
+        eventId: event?.id ?? registration.eventId,
+        studentId: registration.studentId,
+        studentName: registration.studentName,
+        whatsappNumber: cleanNumber,
+        eventTitle: event?.title ?? registration.eventTitle,
+        eventDate: event?.dateFormatted ?? registration.eventDate,
+        eventTime: event?.time ?? '',
+        venue: event?.venue ?? registration.venue,
+        ticketToken: registration.ticketToken,
+        deliveryMode: 'cloud_api',
+        status: 'pending',
+        attemptCount: attemptCount,
+        lastAttemptAt: now,
+        createdAt: docSnap.exists ? null : now,
+        updatedAt: now,
+      );
+
+      await docRef.set(notificationLog.toMap(), SetOptions(merge: true));
+
+      if (registration.id.isNotEmpty) {
+        await _registrations.doc(registration.id).update({
+          'whatsappStatus': 'pending',
+          'whatsappDeliveryMode': 'cloud_api',
+        }).catchError((_) {});
+      }
+
+      return const WhatsAppApiResult(
+        success: true,
+        status: 'pending',
+        message: 'WhatsApp confirmation queued successfully for delivery.',
+      );
+    } catch (e) {
+      debugPrint('Error queueing automated notification: $e');
+      return WhatsAppApiResult(
+        success: false,
+        status: 'failed',
+        message: 'Failed to queue automated notification: $e',
+      );
+    }
+  }
+
+  /// Safely retries an eligible failed or unconfigured notification without sending duplicates.
+  Future<WhatsAppApiResult> retryCloudApiNotification({
+    required RegistrationModel registration,
+    EventModel? event,
+  }) async {
+    final String logId = '${registration.id}_cloud_wa';
+    try {
+      final docRef = _notificationLogs.doc(logId);
+      final docSnap = await docRef.get();
+
+      if (!docSnap.exists) {
+        // Not yet queued -> queue fresh
+        return queueAutomatedNotification(
+          registration: registration,
+          event: event,
+        );
+      }
+
+      final currentStatus = docSnap.data()?['status'] as String? ?? '';
+      // Guard against duplicate send
+      if (const ['accepted', 'delivered', 'read', 'processing', 'sent']
+          .contains(currentStatus)) {
+        return WhatsAppApiResult(
+          success: false,
+          status: currentStatus,
+          message: 'Cannot retry: message has already been $currentStatus.',
+        );
+      }
+
+      final int attemptCount =
+          ((docSnap.data()?['attemptCount'] as num?)?.toInt() ?? 1) + 1;
+      final DateTime now = DateTime.now();
+
+      await docRef.update({
+        'status': 'pending',
+        'lastError': '',
+        'attemptCount': attemptCount,
+        'lastAttemptAt': Timestamp.fromDate(now),
+        'updatedAt': Timestamp.fromDate(now),
+      });
+
+      if (registration.id.isNotEmpty) {
+        await _registrations.doc(registration.id).update({
+          'whatsappStatus': 'pending',
+          'whatsappError': '',
+        }).catchError((_) {});
+      }
+
+      return const WhatsAppApiResult(
+        success: true,
+        status: 'pending',
+        message: 'Notification re-enqueued for delivery.',
+      );
+    } catch (e) {
+      debugPrint('Error retrying notification: $e');
+      return WhatsAppApiResult(
+        success: false,
+        status: 'failed',
+        message: 'Could not retry notification: $e',
+      );
+    }
+  }
+
   /// Streams real-time WhatsApp notification status for a registration
   Stream<WhatsAppNotificationModel?> streamNotificationLog(String registrationId) {
     if (registrationId.isEmpty) return Stream.value(null);
     return _notificationLogs
-        .where('registrationId', isEqualTo: registrationId)
-        .limit(1)
+        .doc('${registrationId}_cloud_wa')
         .snapshots()
-        .map((snapshot) {
-          if (snapshot.docs.isEmpty) return null;
-          return WhatsAppNotificationModel.fromSnapshot(snapshot.docs.first);
+        .map((docSnap) {
+          if (!docSnap.exists) return null;
+          return WhatsAppNotificationModel.fromSnapshot(docSnap);
         });
   }
 
@@ -402,4 +669,73 @@ class WhatsAppService {
       debugPrint('Failed to save notification audit log: $e');
     }
   }
+
+  /// Records admin manual WhatsApp confirmation in Firestore
+  Future<void> recordAdminConfirmation({
+    required String registrationId,
+    required String eventId,
+    required String studentId,
+    required String studentName,
+    required String eventTitle,
+    required String phone,
+    required String adminUid,
+    required bool wasSent,
+  }) async {
+    final now = DateTime.now();
+    final cleanPhone = normalizeForWaMe(phone);
+
+    try {
+      if (wasSent) {
+        await _registrations.doc(registrationId).update({
+          'whatsappStatus': 'admin_confirmed_sent',
+          'whatsappDeliveryMode': 'manual_admin',
+          'whatsappSentAt': Timestamp.fromDate(now),
+          'whatsappConfirmedByAdminUid': adminUid,
+          'whatsappConfirmedAt': Timestamp.fromDate(now),
+          'whatsappNumber': cleanPhone.isNotEmpty ? '+$cleanPhone' : '',
+          'whatsappError': '',
+        }).catchError((_) {});
+
+        await _notificationLogs.doc('${registrationId}_admin_wa').set({
+          'id': '${registrationId}_admin_wa',
+          'registrationId': registrationId,
+          'eventId': eventId,
+          'studentId': studentId,
+          'studentName': studentName,
+          'whatsappNumber': cleanPhone,
+          'eventTitle': eventTitle,
+          'deliveryMode': 'manual_admin',
+          'status': 'admin_confirmed_sent',
+          'adminUid': adminUid,
+          'confirmedAt': Timestamp.fromDate(now),
+          'lastAttemptAt': Timestamp.fromDate(now),
+          'updatedAt': Timestamp.fromDate(now),
+        }, SetOptions(merge: true)).catchError((_) {});
+      } else {
+        await _registrations.doc(registrationId).update({
+          'whatsappStatus': 'not_sent',
+          'whatsappDeliveryMode': 'manual_admin',
+          'whatsappError': 'Admin recorded message not sent.',
+        }).catchError((_) {});
+
+        await _notificationLogs.doc('${registrationId}_admin_wa').set({
+          'id': '${registrationId}_admin_wa',
+          'registrationId': registrationId,
+          'eventId': eventId,
+          'studentId': studentId,
+          'studentName': studentName,
+          'whatsappNumber': cleanPhone,
+          'eventTitle': eventTitle,
+          'deliveryMode': 'manual_admin',
+          'status': 'not_sent',
+          'adminUid': adminUid,
+          'lastError': 'Admin recorded message not sent.',
+          'updatedAt': Timestamp.fromDate(now),
+        }, SetOptions(merge: true)).catchError((_) {});
+      }
+    } catch (e) {
+      debugPrint('Error recording admin WhatsApp confirmation: $e');
+    }
+  }
 }
+

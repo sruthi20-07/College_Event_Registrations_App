@@ -1,7 +1,7 @@
 /**
- * WhatsApp Cloud API Backend for College Event App
- * Implements Mode B: Automated WhatsApp Confirmation & Digital Ticket Delivery
- * Powered by Firebase Cloud Functions & Cloud Firestore
+ * Official WhatsApp Business Cloud API Backend for College Event App
+ * Automatically sends verified registration confirmations and digital ticket passes.
+ * Powered by Firebase Cloud Functions & Cloud Firestore.
  */
 
 const functions = require("firebase-functions");
@@ -11,16 +11,12 @@ const axios = require("axios");
 admin.initializeApp();
 const db = admin.firestore();
 
-// Secrets configured in Firebase Secret Manager:
-// - WHATSAPP_ACCESS_TOKEN
-// - WHATSAPP_PHONE_NUMBER_ID
-// - WHATSAPP_WEBHOOK_VERIFY_TOKEN
-// - WHATSAPP_TEMPLATE_NAME (default: "event_registration_confirmation")
-
+// Meta WhatsApp Cloud API Version
 const GRAPH_API_VERSION = "v21.0";
 
 /**
  * Normalizes phone number into international E.164 digits without '+'
+ * Handles Indian numbers (default country 91) and existing international numbers.
  */
 function normalizePhoneNumber(rawNumber, defaultCountry = "91") {
   if (!rawNumber) return "";
@@ -36,7 +32,141 @@ function normalizePhoneNumber(rawNumber, defaultCountry = "91") {
 }
 
 /**
- * 1. Background Trigger: Executes whenever a notification_log is queued with 'pending' status
+ * Safely masks a phone number for diagnostics without exposing student PII
+ */
+function maskPhoneNumber(phone) {
+  if (!phone || phone.length < 4) return "****";
+  return `+***${phone.slice(-4)}`;
+}
+
+/**
+ * 1. AUTOMATED TRIGGER: Executes whenever a registration is created or updated
+ * When registration is confirmed and payment completed (or free), automatically enqueues
+ * an official WhatsApp confirmation job idempotently.
+ */
+exports.onRegistrationConfirmed = functions.firestore
+  .document("registrations/{registrationId}")
+  .onWrite(async (change, context) => {
+    if (!change.after.exists) return null;
+
+    const regData = change.after.data();
+    const registrationId = context.params.registrationId;
+
+    // Check if registration is in confirmed status
+    const isConfirmed =
+      regData.registrationStatus === "confirmed" ||
+      regData.registrationStatus === "registered";
+
+    if (!isConfirmed) {
+      return null;
+    }
+
+    // Check payment status for paid events
+    const isPaidEvent = Number(regData.amount || 0) > 0;
+    const isPaidOrFree =
+      !isPaidEvent ||
+      regData.paymentStatus === "paid" ||
+      regData.paymentStatus === "completed";
+
+    if (!isPaidOrFree) {
+      return null;
+    }
+
+    // Check WhatsApp messaging consent
+    if (!regData.whatsappConsent) {
+      return null;
+    }
+
+    // Deterministic Idempotency Key
+    const logId = `${registrationId}_cloud_wa`;
+    const logRef = db.collection("notification_logs").doc(logId);
+
+    return db.runTransaction(async (transaction) => {
+      const logDoc = await transaction.get(logRef);
+
+      if (logDoc.exists) {
+        const existingStatus = logDoc.data().status;
+        // Never duplicate if already pending, processing, accepted, sent, delivered, or read
+        if (
+          ["pending", "processing", "accepted", "sent", "delivered", "read"].includes(
+            existingStatus
+          )
+        ) {
+          return null;
+        }
+      }
+
+      // Fetch event details if missing on registration document
+      let eventTitle = regData.eventTitle || "";
+      let eventDate = regData.eventDate || "";
+      let eventTime = "";
+      let venue = regData.venue || "";
+
+      if (regData.eventId) {
+        const eventDoc = await transaction.get(
+          db.collection("events").doc(regData.eventId)
+        );
+        if (eventDoc.exists) {
+          const ed = eventDoc.data();
+          if (!eventTitle) eventTitle = ed.title || "";
+          if (!eventDate)
+            eventDate = ed.dateFormatted || (ed.date ? String(ed.date) : "");
+          eventTime =
+            ed.time ||
+            (ed.startTime ? `${ed.startTime} - ${ed.endTime || ""}` : "");
+          if (!venue) venue = ed.venue || "";
+        }
+      }
+
+      const formattedRegId =
+        registrationId.length > 8
+          ? `REG-${registrationId.substring(0, 8).toUpperCase()}`
+          : `REG-${registrationId.toUpperCase()}`;
+
+      const ticketToken = regData.ticketToken || formattedRegId;
+      const recipientPhone = normalizePhoneNumber(
+        regData.whatsappNumber || regData.phone
+      );
+
+      transaction.set(
+        logRef,
+        {
+          id: logId,
+          registrationId: registrationId,
+          eventId: regData.eventId || "",
+          studentId: regData.studentId || regData.userId || "",
+          studentName: regData.studentName || "Student",
+          whatsappNumber: recipientPhone,
+          eventTitle: eventTitle || "College Event",
+          eventDate: eventDate || "Upcoming Date",
+          eventTime: eventTime || "Scheduled Time",
+          venue: venue || "College Campus",
+          ticketToken: ticketToken,
+          deliveryMode: "cloud_api",
+          status: "pending",
+          attemptCount: 1,
+          lastError: "",
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      transaction.update(change.after.ref, {
+        whatsappStatus: "pending",
+        whatsappDeliveryMode: "cloud_api",
+      });
+
+      console.log(
+        `[WhatsApp Auto-Trigger] Enqueued confirmation job for registration ${registrationId}`
+      );
+      return null;
+    });
+  });
+
+/**
+ * 2. QUEUE PROCESSOR: Processes pending WhatsApp notification jobs
+ * Dispatches official template messages via Meta WhatsApp Cloud API.
  */
 exports.processWhatsAppNotificationQueue = functions.firestore
   .document("notification_logs/{logId}")
@@ -51,21 +181,51 @@ exports.processWhatsAppNotificationQueue = functions.firestore
       return null;
     }
 
+    // Atomically claim the job to prevent duplicate sends on retries / concurrent invocations
+    const claimed = await db.runTransaction(async (transaction) => {
+      const doc = await transaction.get(change.after.ref);
+      if (!doc.exists) return false;
+      if (doc.data().status !== "pending") return false;
+
+      transaction.update(change.after.ref, {
+        status: "processing",
+        lastAttemptAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      return true;
+    });
+
+    if (!claimed) {
+      return null;
+    }
+
+    // Retrieve backend credentials safely from environment secrets
     const token = process.env.WHATSAPP_ACCESS_TOKEN;
     const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
     const templateName =
       process.env.WHATSAPP_TEMPLATE_NAME || "event_registration_confirmation";
 
     if (!token || !phoneNumberId) {
+      const errMsg =
+        "WhatsApp Cloud API credentials (WHATSAPP_ACCESS_TOKEN / WHATSAPP_PHONE_NUMBER_ID) not configured in Firebase secrets.";
       console.warn(
-        `[WhatsApp] Missing Cloud API configuration for job ${logId}. Skipping API call.`
+        `[WhatsApp] Cloud API credentials not configured. Job ${logId} marked as unconfigured.`
       );
       await change.after.ref.update({
         status: "unconfigured",
-        lastError:
-          "WhatsApp Cloud API credentials (WHATSAPP_ACCESS_TOKEN / WHATSAPP_PHONE_NUMBER_ID) not configured in Firebase environment secrets.",
+        lastError: errMsg,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
+      if (data.registrationId) {
+        await db
+          .collection("registrations")
+          .doc(data.registrationId)
+          .update({
+            whatsappStatus: "unconfigured",
+            whatsappError: errMsg,
+          })
+          .catch(() => {});
+      }
       return null;
     }
 
@@ -74,10 +234,11 @@ exports.processWhatsAppNotificationQueue = functions.firestore
       .collection("registrations")
       .doc(data.registrationId)
       .get();
+
     if (!regDoc.exists) {
       await change.after.ref.update({
         status: "failed",
-        lastError: "Registration document not found in Firestore.",
+        lastError: "Registration record not found in Firestore.",
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
       return null;
@@ -85,21 +246,39 @@ exports.processWhatsAppNotificationQueue = functions.firestore
 
     const regData = regDoc.data();
     if (!regData.whatsappConsent) {
+      const noConsentMsg = "Student has not granted WhatsApp messaging consent.";
       await change.after.ref.update({
         status: "no_consent",
-        lastError: "Student has not granted WhatsApp messaging consent.",
+        lastError: noConsentMsg,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
+      await db
+        .collection("registrations")
+        .doc(data.registrationId)
+        .update({
+          whatsappStatus: "no_consent",
+          whatsappError: noConsentMsg,
+        })
+        .catch(() => {});
       return null;
     }
 
     // 2. Validate Paid Status
     if (regData.amount > 0 && regData.paymentStatus !== "paid") {
+      const pendingMsg = "Payment is pending. Confirmation deferred.";
       await change.after.ref.update({
         status: "payment_pending",
-        lastError: "Payment is not completed. Ticket message deferred.",
+        lastError: pendingMsg,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
+      await db
+        .collection("registrations")
+        .doc(data.registrationId)
+        .update({
+          whatsappStatus: "payment_pending",
+          whatsappError: pendingMsg,
+        })
+        .catch(() => {});
       return null;
     }
 
@@ -108,11 +287,20 @@ exports.processWhatsAppNotificationQueue = functions.firestore
     );
 
     if (!recipientPhone || recipientPhone.length < 10) {
+      const invalidPhoneMsg = `Invalid recipient phone number: ${maskPhoneNumber(recipientPhone)}`;
       await change.after.ref.update({
         status: "invalid_phone",
-        lastError: `Invalid recipient phone number: ${recipientPhone}`,
+        lastError: invalidPhoneMsg,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
+      await db
+        .collection("registrations")
+        .doc(data.registrationId)
+        .update({
+          whatsappStatus: "invalid_phone",
+          whatsappError: invalidPhoneMsg,
+        })
+        .catch(() => {});
       return null;
     }
 
@@ -123,7 +311,7 @@ exports.processWhatsAppNotificationQueue = functions.firestore
 
     const ticketId = data.ticketToken || regData.ticketToken || formattedRegId;
 
-    // 3. Construct Meta Cloud API Payload
+    // 3. Construct Meta Cloud API Payload conforming to approved Template
     const payload = {
       messaging_product: "whatsapp",
       recipient_type: "individual",
@@ -181,7 +369,7 @@ exports.processWhatsAppNotificationQueue = functions.firestore
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-          timeout: 10000,
+          timeout: 12000,
         }
       );
 
@@ -194,19 +382,21 @@ exports.processWhatsAppNotificationQueue = functions.firestore
       await change.after.ref.update({
         status: "accepted",
         providerMessageId: messageId || "",
+        lastError: "",
         lastAttemptAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
-      // Update registration document
+      // Update registration document with accepted state
       await db.collection("registrations").doc(data.registrationId).update({
         whatsappStatus: "accepted",
         whatsappMessageId: messageId || "",
+        whatsappError: "",
         whatsappSentAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
       console.log(
-        `[WhatsApp] Message successfully accepted by Meta. Job: ${logId}, MessageId: ${messageId}`
+        `[WhatsApp] Message accepted by Meta. Job: ${logId}, MessageId: ${messageId}`
       );
     } catch (err) {
       const safeErrorMessage =
@@ -236,7 +426,7 @@ exports.processWhatsAppNotificationQueue = functions.firestore
   });
 
 /**
- * 2. Webhook Endpoint: Handles Meta WhatsApp Delivery Receipts (sent, delivered, read, failed)
+ * 3. WEBHOOK ENDPOINT: Handles Meta Delivery Receipts (sent, delivered, read, failed)
  */
 exports.whatsappWebhook = functions.https.onRequest(async (req, res) => {
   // Verification Challenge (GET)
@@ -245,7 +435,8 @@ exports.whatsappWebhook = functions.https.onRequest(async (req, res) => {
     const token = req.query["hub.verify_token"];
     const challenge = req.query["hub.challenge"];
 
-    const verifyToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || "college_events_verify_token";
+    const verifyToken =
+      process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || "college_events_verify_token";
 
     if (mode === "subscribe" && token === verifyToken) {
       return res.status(200).send(challenge);
@@ -265,10 +456,9 @@ exports.whatsappWebhook = functions.https.onRequest(async (req, res) => {
             for (const statusObj of value.statuses) {
               const messageId = statusObj.id;
               const deliveryStatus = statusObj.status; // 'sent', 'delivered', 'read', 'failed'
-              const recipientId = statusObj.recipient_id;
 
               console.log(
-                `[WhatsApp Webhook] Status update: Msg ${messageId} -> ${deliveryStatus}`
+                `[WhatsApp Webhook] Status: Msg ${messageId} -> ${deliveryStatus}`
               );
 
               // Update matching notification log in Firestore
@@ -304,3 +494,283 @@ exports.whatsappWebhook = functions.https.onRequest(async (req, res) => {
 
   res.status(405).send("Method Not Allowed");
 });
+
+/**
+ * 4. ADMIN CALLABLE: Allows authorized admin staff to safely retry eligible failed notifications
+ */
+exports.adminRetryWhatsAppNotification = functions.https.onCall(
+  async (data, context) => {
+    // 1. Authorization verification
+    if (!context.auth) {
+      throw new functions.https.HttpsError(
+        "unauthenticated",
+        "Authentication required."
+      );
+    }
+
+    const callerUid = context.auth.uid;
+    const userDoc = await db.collection("users").doc(callerUid).get();
+    const callerEmail = context.auth.token.email || "";
+
+    const isAdmin =
+      callerEmail === "admin@collegeevent.com" ||
+      callerEmail === "admin@college.edu" ||
+      (userDoc.exists &&
+        ["admin", "faculty", "coordinator"].includes(userDoc.data().role));
+
+    if (!isAdmin) {
+      throw new functions.https.HttpsError(
+        "permission-denied",
+        "Only authorized administrators may retry notifications."
+      );
+    }
+
+    const { registrationId } = data;
+    if (!registrationId) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "registrationId is required."
+      );
+    }
+
+    const logId = `${registrationId}_cloud_wa`;
+    const logRef = db.collection("notification_logs").doc(logId);
+
+    return db.runTransaction(async (transaction) => {
+      const logDoc = await transaction.get(logRef);
+
+      if (!logDoc.exists) {
+        throw new functions.https.HttpsError(
+          "not-found",
+          "No notification job found for this registration."
+        );
+      }
+
+      const currentStatus = logDoc.data().status;
+      // Do not re-send if already delivered or accepted
+      if (["delivered", "read", "accepted", "processing"].includes(currentStatus)) {
+        return {
+          success: false,
+          message: `Cannot retry: Notification is already in '${currentStatus}' status.`,
+        };
+      }
+
+      // Reset to pending to re-trigger the queue worker
+      transaction.update(logRef, {
+        status: "pending",
+        lastError: "",
+        attemptCount: admin.firestore.FieldValue.increment(1),
+        lastAttemptAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      return {
+        success: true,
+        message: "Notification re-enqueued successfully for processing.",
+      };
+    });
+  }
+);
+
+/**
+ * 5. REWARD REDEMPTION CALLABLE: Server-validated atomic reward redemption
+ */
+exports.redeemRewardCallable = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      "unauthenticated",
+      "Authentication required to redeem rewards."
+    );
+  }
+
+  const studentId = context.auth.uid;
+  const { rewardId } = data;
+
+  if (!rewardId) {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "rewardId is required."
+    );
+  }
+
+  const rewardRef = db.collection("rewards").doc(rewardId);
+  const gamificationRef = db.collection("gamification").doc(studentId);
+  const userRef = db.collection("users").doc(studentId);
+
+  return db.runTransaction(async (transaction) => {
+    const rewardDoc = await transaction.get(rewardRef);
+    if (!rewardDoc.exists) {
+      throw new functions.https.HttpsError("not-found", "Reward not found.");
+    }
+    const reward = rewardDoc.data();
+    if (!reward.isEnabled) {
+      throw new functions.https.HttpsError(
+        "failed-precondition",
+        "Reward is currently disabled."
+      );
+    }
+    if (reward.availableStock === 0) {
+      throw new functions.https.HttpsError(
+        "failed-precondition",
+        "Reward is out of stock."
+      );
+    }
+
+    const gameDoc = await transaction.get(gamificationRef);
+    const gameData = gameDoc.exists ? gameDoc.data() : { coins: 0 };
+    const currentCoins = Number(gameData.coins || 0);
+
+    if (currentCoins < reward.coinCost) {
+      throw new functions.https.HttpsError(
+        "failed-precondition",
+        `Insufficient coins. Required: ${reward.coinCost}, Available: ${currentCoins}`
+      );
+    }
+
+    const userDoc = await transaction.get(userRef);
+    const userData = userDoc.exists ? userDoc.data() : {};
+
+    const redemptionId = `RED-${Date.now()}-${studentId.substring(0, 4)}`;
+    const redemptionRef = db.collection("redemptions").doc(redemptionId);
+    const ledgerRef = db.collection("reward_history").doc(`${redemptionId}_ledger`);
+
+    // Deduct coins (spendable balance only)
+    transaction.set(
+      gamificationRef,
+      {
+        coins: currentCoins - reward.coinCost,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    // Decrement stock if finite
+    if (reward.availableStock > 0) {
+      transaction.update(rewardRef, {
+        availableStock: reward.availableStock - 1,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
+    // Create redemption
+    transaction.set(redemptionRef, {
+      id: redemptionId,
+      studentId: studentId,
+      studentName: userData.name || "Student",
+      studentRoll: userData.rollNumber || "",
+      studentEmail: userData.email || "",
+      rewardId: rewardId,
+      rewardTitle: reward.title || "Reward",
+      rewardCategory: reward.category || "college_perk",
+      coinCost: reward.coinCost,
+      status: reward.fulfilmentType === "automatic" ? "approved" : "pending",
+      statusReason: `Redeemed with ${reward.coinCost} coins`,
+      idempotencyKey: redemptionId,
+      redeemedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // Create ledger entry
+    transaction.set(ledgerRef, {
+      id: `${redemptionId}_ledger`,
+      studentId: studentId,
+      amount: -reward.coinCost,
+      type: "reward_redemption",
+      title: `Redeemed: ${reward.title || "Reward"}`,
+      description: `Spent ${reward.coinCost} coins`,
+      refId: rewardId,
+      idempotencyKey: redemptionId,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return {
+      success: true,
+      redemptionId: redemptionId,
+      remainingCoins: currentCoins - reward.coinCost,
+    };
+  });
+});
+
+/**
+ * 6. ADMIN COIN ADJUSTMENT CALLABLE: Role-verified administrative adjustments
+ */
+exports.adminAdjustCoinsCallable = functions.https.onCall(
+  async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError(
+        "unauthenticated",
+        "Authentication required."
+      );
+    }
+
+    const callerUid = context.auth.uid;
+    const callerEmail = context.auth.token.email || "";
+    const callerDoc = await db.collection("users").doc(callerUid).get();
+    const isAdmin =
+      callerEmail === "admin@collegeevent.com" ||
+      callerEmail === "admin@college.edu" ||
+      (callerDoc.exists &&
+        ["admin", "faculty", "coordinator"].includes(callerDoc.data().role));
+
+    if (!isAdmin) {
+      throw new functions.https.HttpsError(
+        "permission-denied",
+        "Only authorized staff can adjust student coins."
+      );
+    }
+
+    const { studentId, coinDelta, reason } = data;
+    if (!studentId || typeof coinDelta !== "number" || coinDelta === 0 || !reason) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "studentId, non-zero coinDelta, and reason are required."
+      );
+    }
+
+    const gamificationRef = db.collection("gamification").doc(studentId);
+    const adjustmentId = `ADJ-${Date.now()}-${studentId.substring(0, 4)}`;
+    const ledgerRef = db.collection("reward_history").doc(adjustmentId);
+
+    return db.runTransaction(async (transaction) => {
+      const gameDoc = await transaction.get(gamificationRef);
+      const gameData = gameDoc.exists
+        ? gameDoc.data()
+        : { coins: 0, lifetimeCoins: 0 };
+      const currentSpendable = Number(gameData.coins || 0);
+      const currentLifetime = Number(gameData.lifetimeCoins || currentSpendable);
+
+      const newSpendable = Math.max(0, currentSpendable + coinDelta);
+      const newLifetime =
+        coinDelta > 0 ? currentLifetime + coinDelta : currentLifetime;
+
+      transaction.set(
+        gamificationRef,
+        {
+          coins: newSpendable,
+          lifetimeCoins: newLifetime,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      transaction.set(ledgerRef, {
+        id: adjustmentId,
+        studentId: studentId,
+        amount: coinDelta,
+        type: "admin_adjustment",
+        title: coinDelta > 0 ? "Admin Coin Award" : "Admin Coin Deduction",
+        description: `${reason} (by ${callerUid})`,
+        refId: callerUid,
+        idempotencyKey: adjustmentId,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      return {
+        success: true,
+        adjustmentId: adjustmentId,
+        newSpendable: newSpendable,
+        newLifetime: newLifetime,
+      };
+    });
+  }
+);
+

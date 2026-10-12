@@ -4,12 +4,16 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import '../models/attendance_scan_result.dart';
+import '../models/attendance_session_model.dart';
 import '../models/gamification_model.dart';
 import '../models/registration_model.dart';
 import '../utils/constants.dart';
 import 'gamification_service.dart';
+import 'whatsapp_service.dart';
 
 class RegistrationService {
+  WhatsAppService get _whatsAppService => WhatsAppService();
+  GamificationService get _gamificationService => GamificationService();
   FirebaseFirestore get _db => FirebaseFirestore.instance;
 
   CollectionReference<Map<String, dynamic>> get _registrationsCollection =>
@@ -23,6 +27,9 @@ class RegistrationService {
 
   CollectionReference<Map<String, dynamic>> get _attendanceCollection =>
       _db.collection('attendance');
+
+  CollectionReference<Map<String, dynamic>> get _attendanceSessionsCollection =>
+      _db.collection('attendance_sessions');
 
   /// Generates a cryptographically secure, unpredictable ticket token
   static String generateSecureTicketToken() {
@@ -88,9 +95,17 @@ class RegistrationService {
 
     try {
       await _db.runTransaction((transaction) async {
+        // --- READ PHASE: ALL READS FIRST ---
         final regRef = _registrationsCollection.doc(deterministicDocId);
         final regDoc = await transaction.get(regRef);
 
+        final eventRef = _eventsCollection.doc(registration.eventId);
+        final eventDoc = await transaction.get(eventRef);
+
+        final userRef = _db.collection('users').doc(currentUid);
+        final userDoc = await transaction.get(userRef);
+
+        // --- VALIDATION PHASE ---
         if (regDoc.exists) {
           final existingData = regDoc.data()!;
           final status = existingData['registrationStatus'] as String? ?? '';
@@ -99,9 +114,6 @@ class RegistrationService {
             throw Exception('You are already registered for this event.');
           }
         }
-
-        final eventRef = _eventsCollection.doc(registration.eventId);
-        final eventDoc = await transaction.get(eventRef);
 
         if (eventDoc.exists) {
           final data = eventDoc.data()!;
@@ -134,13 +146,64 @@ class RegistrationService {
             throw Exception('Sorry, this event is full.');
           }
 
+          // Check eligibility criteria
+          final List<String> allowedYears =
+              (data['allowedYears'] as List?)?.map((e) => e.toString()).toList() ?? [];
+          final List<String> allowedDepts =
+              (data['allowedDepartments'] as List?)?.map((e) => e.toString()).toList() ?? [];
+
+          final userData = userDoc.exists ? (userDoc.data() ?? {}) : {};
+          final userRole = (userData['role'] as String? ?? '').toLowerCase();
+          final bool isStaff = userRole == 'admin' ||
+              userRole == 'faculty' ||
+              userRole == 'coordinator';
+
+          if (!isStaff) {
+            final String studentYear = (userData['year'] as String? ?? registration.year).trim();
+            final String studentDept = (userData['department'] as String? ?? registration.department).trim();
+
+            final bool checkYears = allowedYears.isNotEmpty &&
+                !allowedYears.contains('All') &&
+                !allowedYears.contains(AcademicYears.all);
+
+            if (checkYears) {
+              if (studentYear.isEmpty) {
+                throw Exception(
+                  'Profile Incomplete: Academic year is required to verify event eligibility. Please update your profile.',
+                );
+              }
+              if (!AcademicYears.matches(allowedYears, studentYear)) {
+                throw Exception(
+                  'Ineligible: This event is open only to ${allowedYears.join(', ')}. Your profile indicates $studentYear.',
+                );
+              }
+            }
+
+            final bool checkDepts = allowedDepts.isNotEmpty &&
+                !allowedDepts.contains('All') &&
+                !allowedDepts.contains(AcademicDepartments.all);
+
+            if (checkDepts) {
+              if (studentDept.isEmpty) {
+                throw Exception(
+                  'Profile Incomplete: Department/Branch is required to verify event eligibility. Please update your profile.',
+                );
+              }
+              if (!AcademicDepartments.matches(allowedDepts, studentDept)) {
+                throw Exception(
+                  'Ineligible: This event is open only to ${allowedDepts.join(', ')}. Your profile indicates $studentDept.',
+                );
+              }
+            }
+          }
+
           final int newRegisteredCount = registeredCount + 1;
           final int newAvailableSeats = (capacity - newRegisteredCount).clamp(
             0,
             capacity,
           );
 
-          // Update event seat statistics atomically
+          // --- WRITE PHASE: ALL WRITES AFTER ALL READS ---
           transaction.update(eventRef, {
             'registeredCount': newRegisteredCount,
             'availableSeats': newAvailableSeats,
@@ -165,24 +228,34 @@ class RegistrationService {
       debugPrint('EVENT ID: ${registration.eventId}');
       debugPrint('TICKET TOKEN: $secureToken');
 
+      // Trigger official WhatsApp notification asynchronously if student consented
+      if (registration.whatsappConsent) {
+        try {
+          final confirmedRegistration = registration.copyWith(
+            id: deterministicDocId,
+            studentId: currentUid,
+            ticketToken: secureToken,
+            registrationStatus: 'confirmed',
+          );
+          _whatsAppService.queueAutomatedNotification(
+            registration: confirmedRegistration,
+          ).catchError((err) {
+            debugPrint('Async WhatsApp notification queue warning: $err');
+            return WhatsAppApiResult(
+              success: false,
+              status: 'failed',
+              message: err.toString(),
+            );
+          });
+        } catch (e) {
+          debugPrint('Safe catch on automated WhatsApp trigger: $e');
+        }
+      }
+
       return deterministicDocId;
     } catch (e) {
-      // Direct set fallback if transaction fails
-      final regRef = _registrationsCollection.doc(deterministicDocId);
-      final finalRegistration = registration.copyWith(
-        id: deterministicDocId,
-        studentId: currentUid,
-        ticketToken: secureToken,
-        registeredAt: DateTime.now(),
-        registrationStatus: 'confirmed',
-      );
-      await regRef.set(finalRegistration.toMap(), SetOptions(merge: true));
-
-      debugPrint('REGISTRATION SAVED (FALLBACK)');
-      debugPrint('USER ID: $currentUid');
-      debugPrint('EVENT ID: ${registration.eventId}');
-
-      return deterministicDocId;
+      debugPrint('Registration transaction error: $e');
+      rethrow;
     }
   }
 
@@ -379,6 +452,9 @@ class RegistrationService {
       final regRef = _registrationsCollection.doc(registrationId);
 
       if (attended) {
+        String verifiedStudentId = '';
+        String verifiedEventId = '';
+
         await _db.runTransaction((transaction) async {
           // --- READ PHASE: ALL READS FIRST ---
           final regDoc = await transaction.get(regRef);
@@ -390,6 +466,9 @@ class RegistrationService {
           if (reg.isAttended) {
             return; // Already marked attended
           }
+
+          verifiedStudentId = reg.studentId;
+          verifiedEventId = reg.eventId;
 
           final String idempotencyRewardId = '${reg.studentId}_${reg.eventId}';
           final rewardRef = _db
@@ -460,6 +539,13 @@ class RegistrationService {
             );
           }
         });
+
+        if (verifiedStudentId.isNotEmpty) {
+          _gamificationService.processReferralQualificationOnFirstAttendance(
+            referredStudentId: verifiedStudentId,
+            eventId: verifiedEventId,
+          ).catchError((_) {});
+        }
       } else {
         await _db.runTransaction((transaction) async {
           // --- READ PHASE ---
@@ -794,6 +880,13 @@ class RegistrationService {
         }
       });
 
+      if (currentReg.studentId.isNotEmpty) {
+        _gamificationService.processReferralQualificationOnFirstAttendance(
+          referredStudentId: currentReg.studentId,
+          eventId: currentReg.eventId,
+        ).catchError((_) {});
+      }
+
       final updatedReg = currentReg.copyWith(
         attended: true,
         attendanceStatus: 'attended',
@@ -825,4 +918,473 @@ class RegistrationService {
       );
     }
   }
+
+  // ==========================================
+  // ROTATING EVENT QR ATTENDANCE METHODS
+  // ==========================================
+
+  /// Starts a new active live attendance session for an event (Admin Only)
+  Future<AttendanceSessionModel> startAttendanceSession({
+    required String eventId,
+    required String eventTitle,
+    int refreshIntervalSeconds = 15,
+    int sessionDurationMinutes = 60,
+  }) async {
+    final User? currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      throw Exception('Admin authentication required.');
+    }
+
+    final String adminUid = currentUser.uid;
+    final now = DateTime.now();
+    final expiresAt = now.add(Duration(minutes: sessionDurationMinutes));
+
+    final docRef = _attendanceSessionsCollection.doc();
+    final initialPayload = AttendanceQrPayload.create(
+      eventId: eventId,
+      sessionId: docRef.id,
+      adminUid: adminUid,
+      validDurationSeconds: refreshIntervalSeconds + 5,
+    );
+
+    final session = AttendanceSessionModel(
+      id: docRef.id,
+      eventId: eventId,
+      eventTitle: eventTitle,
+      createdByAdminUid: adminUid,
+      createdAt: now,
+      expiresAt: expiresAt,
+      isActive: true,
+      refreshIntervalSeconds: refreshIntervalSeconds,
+      currentNonce: initialPayload.nonce,
+      currentHash: initialPayload.hash,
+      attendeeCount: 0,
+      lastRotatedAt: now,
+    );
+
+    await docRef.set(session.toMap());
+    return session;
+  }
+
+  /// Rotates the QR token for an active attendance session (Admin Only)
+  Future<AttendanceQrPayload> rotateSessionToken({
+    required String sessionId,
+    required String eventId,
+    int refreshIntervalSeconds = 15,
+  }) async {
+    final User? currentUser = FirebaseAuth.instance.currentUser;
+    final String adminUid = currentUser?.uid ?? '';
+
+    final payload = AttendanceQrPayload.create(
+      eventId: eventId,
+      sessionId: sessionId,
+      adminUid: adminUid,
+      validDurationSeconds: refreshIntervalSeconds + 5,
+    );
+
+    final docRef = _attendanceSessionsCollection.doc(sessionId);
+    await docRef.update({
+      'currentNonce': payload.nonce,
+      'currentHash': payload.hash,
+      'lastRotatedAt': Timestamp.fromDate(DateTime.now()),
+    });
+
+    return payload;
+  }
+
+  /// Closes and expires an attendance session (Admin Only)
+  Future<void> stopAttendanceSession(String sessionId) async {
+    try {
+      final docRef = _attendanceSessionsCollection.doc(sessionId);
+      await docRef.update({
+        'isActive': false,
+        'closedAt': Timestamp.fromDate(DateTime.now()),
+      });
+    } catch (e) {
+      debugPrint('Error stopping attendance session: $e');
+      rethrow;
+    }
+  }
+
+  /// Streams an attendance session document in real time
+  Stream<AttendanceSessionModel?> streamAttendanceSession(String sessionId) {
+    if (sessionId.isEmpty) return Stream.value(null);
+    return _attendanceSessionsCollection.doc(sessionId).snapshots().map((doc) {
+      if (!doc.exists || doc.data() == null) return null;
+      return AttendanceSessionModel.fromSnapshot(doc);
+    });
+  }
+
+  /// Streams the latest active attendance session for a specific event
+  Stream<AttendanceSessionModel?> streamActiveAttendanceSessionForEvent(
+    String eventId,
+  ) {
+    if (eventId.isEmpty) return Stream.value(null);
+    return _attendanceSessionsCollection
+        .where('eventId', isEqualTo: eventId)
+        .where('isActive', isEqualTo: true)
+        .limit(1)
+        .snapshots()
+        .map((query) {
+      if (query.docs.isEmpty) return null;
+      return AttendanceSessionModel.fromSnapshot(query.docs.first);
+    });
+  }
+
+  /// Atomically validates event QR token and marks student attendance (Student Action)
+  Future<AttendanceScanResult> recordStudentAttendanceViaQr({
+    required String rawPayload,
+    String? studentUid,
+  }) async {
+    // 1. Parse QR payload
+    final payload = AttendanceQrPayload.tryParse(rawPayload);
+    if (payload == null || payload.eventId.isEmpty) {
+      return const AttendanceScanResult(
+        status: AttendanceScanStatus.invalidTicket,
+        message: 'Invalid or unreadable Event Attendance QR code format.',
+      );
+    }
+
+    // 2. Identify currently authenticated student from Firebase Auth
+    final User? currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      return const AttendanceScanResult(
+        status: AttendanceScanStatus.error,
+        message: 'Authentication required. Please sign in to mark attendance.',
+      );
+    }
+
+    final String verifiedStudentId = currentUser.uid;
+    // Disallow spoofing if a studentUid was explicitly supplied that differs from Auth
+    if (studentUid != null &&
+        studentUid.isNotEmpty &&
+        studentUid != verifiedStudentId) {
+      return const AttendanceScanResult(
+        status: AttendanceScanStatus.error,
+        message: 'Security validation failed: User identity mismatch.',
+      );
+    }
+
+    // 3. Client-side expiration check (for rotating timed sessions)
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    if (payload.expiresAt > 0 && nowMs > payload.expiresAt + 15000) {
+      return const AttendanceScanResult(
+        status: AttendanceScanStatus.sessionExpired,
+        message:
+            'This QR code has expired. Please scan the current QR code on the screen.',
+      );
+    }
+
+    // 4. Resolve registration doc ID
+    final deterministicDocId = '${payload.eventId}_$verifiedStudentId';
+    DocumentReference<Map<String, dynamic>> regDocRef =
+        _registrationsCollection.doc(deterministicDocId);
+
+    // If deterministic doc does not exist, look up existing registration ID for this student and event
+    final directCheck = await regDocRef.get();
+    if (!directCheck.exists) {
+      final lookupQuery = await _registrationsCollection
+          .where('eventId', isEqualTo: payload.eventId)
+          .where('studentId', isEqualTo: verifiedStudentId)
+          .limit(1)
+          .get();
+      if (lookupQuery.docs.isNotEmpty) {
+        regDocRef = lookupQuery.docs.first.reference;
+      }
+    }
+
+    // 5. Execute Atomic Firestore Transaction
+    final DateTime now = DateTime.now();
+    int earnedCoins = 0;
+    String eventTitle = '';
+    RegistrationModel? finalReg;
+
+    try {
+      await _db.runTransaction((transaction) async {
+        // --- READ PHASE: ALL READS MUST PRECEDE ALL WRITES ---
+        DocumentSnapshot<Map<String, dynamic>>? sessionDoc;
+        if (payload.sessionId.isNotEmpty) {
+          final sessionRef =
+              _attendanceSessionsCollection.doc(payload.sessionId);
+          sessionDoc = await transaction.get(sessionRef);
+        }
+
+        final eventRef = _eventsCollection.doc(payload.eventId);
+        final eventDoc = await transaction.get(eventRef);
+
+        final regDoc = await transaction.get(regDocRef);
+
+        final userRef = _db.collection('users').doc(verifiedStudentId);
+        final userDoc = await transaction.get(userRef);
+
+        final String idempotencyRewardId =
+            '${verifiedStudentId}_${payload.eventId}';
+        final rewardRef =
+            _db.collection('reward_history').doc(idempotencyRewardId);
+        final rewardDoc = await transaction.get(rewardRef);
+
+        final gamificationRef =
+            _db.collection('gamification').doc(verifiedStudentId);
+        final gamificationDoc = await transaction.get(gamificationRef);
+
+        // --- VALIDATION PHASE ---
+        if (payload.sessionId.isNotEmpty) {
+          if (sessionDoc == null || !sessionDoc.exists) {
+            throw Exception('SESSION_NOT_FOUND');
+          }
+          final sessionData = sessionDoc.data()!;
+          final bool isSessionActive =
+              sessionData['isActive'] as bool? ?? false;
+          if (!isSessionActive) {
+            throw Exception('SESSION_INACTIVE');
+          }
+          if (sessionData['eventId'] != payload.eventId) {
+            throw Exception('WRONG_EVENT');
+          }
+        }
+
+        if (!eventDoc.exists) {
+          throw Exception('EVENT_NOT_FOUND');
+        }
+        final eventData = eventDoc.data()!;
+        final String eventStatus =
+            eventData['status'] as String? ?? EventStatuses.upcoming;
+        if (eventStatus == EventStatuses.cancelled) {
+          throw Exception('EVENT_CANCELLED');
+        }
+
+        // Validate event token if provided in payload
+        final String expectedQrToken =
+            (eventData['qrToken'] ?? eventData['attendanceToken'] ?? '')
+                as String;
+        if (payload.token.isNotEmpty &&
+            expectedQrToken.isNotEmpty &&
+            payload.token != expectedQrToken &&
+            payload.sessionId.isEmpty) {
+          throw Exception('INVALID_EVENT_TOKEN');
+        }
+
+        eventTitle = (eventData['title'] ?? 'Event') as String;
+
+        if (!regDoc.exists) {
+          throw Exception('NOT_REGISTERED');
+        }
+        final regData = regDoc.data()!;
+        final currentReg = RegistrationModel.fromMap(regData, regDoc.id);
+
+        if (currentReg.isCancelled) {
+          throw Exception('REGISTRATION_CANCELLED');
+        }
+
+        if (currentReg.amount > 0 && !currentReg.isPaid) {
+          throw Exception('PAYMENT_PENDING');
+        }
+
+        if (currentReg.isAttended ||
+            regData['attended'] == true ||
+            regData['attendanceStatus'] == 'attended') {
+          throw Exception('ALREADY_CHECKED_IN');
+        }
+
+        // Eligibility validation
+        final List<String> allowedYears =
+            (eventData['allowedYears'] as List?)
+                ?.map((e) => e.toString())
+                .toList() ??
+            [];
+        final List<String> allowedDepts =
+            (eventData['allowedDepartments'] as List?)
+                ?.map((e) => e.toString())
+                .toList() ??
+            [];
+
+        final userData = userDoc.exists ? (userDoc.data() ?? {}) : {};
+        final studentYear =
+            (userData['year'] ?? currentReg.year).toString();
+        final studentDept =
+            (userData['department'] ?? currentReg.department).toString();
+
+        if (allowedYears.isNotEmpty &&
+            studentYear.isNotEmpty &&
+            !allowedYears.contains(studentYear)) {
+          throw Exception('INELIGIBLE_YEAR');
+        }
+        if (allowedDepts.isNotEmpty &&
+            studentDept.isNotEmpty &&
+            !allowedDepts.contains(studentDept)) {
+          throw Exception('INELIGIBLE_DEPT');
+        }
+
+        // --- COMPUTE PHASE ---
+        final bool shouldAwardReward =
+            !rewardDoc.exists && verifiedStudentId.isNotEmpty;
+        final currentGamification = gamificationDoc.exists
+            ? GamificationModel.fromSnapshot(gamificationDoc)
+            : GamificationModel(studentId: verifiedStudentId);
+
+        final rewardCalculation = shouldAwardReward
+            ? GamificationService.computeReward(
+                currentGamification: currentGamification,
+                studentId: verifiedStudentId,
+                eventId: payload.eventId,
+                eventTitle: eventTitle,
+                attendedAt: now,
+              )
+            : null;
+
+        earnedCoins = rewardCalculation?.rewardRecord.coinsAwarded ?? 0;
+
+        final attendanceAuditRef = _attendanceCollection.doc(
+          '${payload.eventId}_${regDoc.id}',
+        );
+
+        // --- WRITE PHASE: ALL WRITES AFTER ALL READS ---
+        transaction.update(regDocRef, {
+          'attended': true,
+          'attendanceStatus': 'attended',
+          'attendedAt': Timestamp.fromDate(now),
+          'checkInMethod': 'event_qr',
+          if (payload.sessionId.isNotEmpty)
+            'attendanceSessionId': payload.sessionId,
+        });
+
+        transaction.set(attendanceAuditRef, {
+          'eventId': payload.eventId,
+          'eventTitle': eventTitle,
+          'registrationId': regDoc.id,
+          'studentId': verifiedStudentId,
+          'studentName': currentReg.studentName.isNotEmpty
+              ? currentReg.studentName
+              : (userData['name'] ?? ''),
+          'rollNumber': currentReg.rollNumber.isNotEmpty
+              ? currentReg.rollNumber
+              : (userData['rollNumber'] ?? ''),
+          'studentEmail': currentReg.studentEmail.isNotEmpty
+              ? currentReg.studentEmail
+              : (userData['email'] ?? ''),
+          'department': currentReg.department.isNotEmpty
+              ? currentReg.department
+              : (userData['department'] ?? ''),
+          'year': currentReg.year.isNotEmpty
+              ? currentReg.year
+              : (userData['year'] ?? ''),
+          'ticketToken': currentReg.ticketToken,
+          'attended': true,
+          'attendanceStatus': 'attended',
+          'attendedAt': Timestamp.fromDate(now),
+          'checkInMethod': 'event_qr',
+          if (payload.sessionId.isNotEmpty)
+            'attendanceSessionId': payload.sessionId,
+        }, SetOptions(merge: true));
+
+        if (sessionDoc != null && sessionDoc.exists) {
+          final int currentAttendeeCount =
+              (sessionDoc.data()!['attendeeCount'] as num? ?? 0).toInt();
+          transaction.update(sessionDoc.reference, {
+            'attendeeCount': currentAttendeeCount + 1,
+          });
+        }
+
+        if (rewardCalculation != null) {
+          transaction.set(
+            gamificationRef,
+            rewardCalculation.updatedGamification.toMap(),
+            SetOptions(merge: true),
+          );
+          transaction.set(
+            rewardRef,
+            rewardCalculation.rewardRecord.toMap(),
+          );
+        }
+
+        finalReg = currentReg.copyWith(
+          attended: true,
+          attendanceStatus: 'attended',
+          attendedAt: now,
+        );
+      });
+
+      if (verifiedStudentId.isNotEmpty) {
+        _gamificationService.processReferralQualificationOnFirstAttendance(
+          referredStudentId: verifiedStudentId,
+          eventId: payload.eventId,
+        ).catchError((_) {});
+      }
+
+      return AttendanceScanResult(
+        status: AttendanceScanStatus.verified,
+        message: 'Attendance recorded successfully! You are verified.',
+        registration: finalReg,
+        attendedAt: now,
+        eventTitle: eventTitle,
+        coinsEarned: earnedCoins,
+      );
+    } catch (e) {
+      final msg = e.toString();
+      if (msg.contains('ALREADY_CHECKED_IN')) {
+        return AttendanceScanResult(
+          status: AttendanceScanStatus.alreadyCheckedIn,
+          message: 'You have already checked in for this event.',
+          eventTitle: eventTitle,
+        );
+      }
+      if (msg.contains('NOT_REGISTERED')) {
+        return AttendanceScanResult(
+          status: AttendanceScanStatus.notRegistered,
+          message:
+              'You are not registered for this event. Please register first to attend.',
+          eventTitle: eventTitle,
+        );
+      }
+      if (msg.contains('EVENT_CANCELLED')) {
+        return const AttendanceScanResult(
+          status: AttendanceScanStatus.sessionInactive,
+          message:
+              'This event has been cancelled or unpublished. Attendance is not open.',
+        );
+      }
+      if (msg.contains('INVALID_EVENT_TOKEN') || msg.contains('WRONG_EVENT')) {
+        return const AttendanceScanResult(
+          status: AttendanceScanStatus.wrongEvent,
+          message: 'This attendance QR does not match the expected event.',
+        );
+      }
+      if (msg.contains('SESSION_INACTIVE') ||
+          msg.contains('SESSION_NOT_FOUND')) {
+        return const AttendanceScanResult(
+          status: AttendanceScanStatus.sessionInactive,
+          message: 'Attendance is currently closed for this event session.',
+        );
+      }
+      if (msg.contains('REGISTRATION_CANCELLED')) {
+        return const AttendanceScanResult(
+          status: AttendanceScanStatus.registrationCancelled,
+          message: 'Your registration for this event was cancelled.',
+        );
+      }
+      if (msg.contains('PAYMENT_PENDING')) {
+        return const AttendanceScanResult(
+          status: AttendanceScanStatus.paymentPending,
+          message:
+              'Registration fee is unpaid. Please complete payment before check-in.',
+        );
+      }
+      if (msg.contains('INELIGIBLE')) {
+        return const AttendanceScanResult(
+          status: AttendanceScanStatus.ineligible,
+          message:
+              'You do not meet the department or year eligibility for this event.',
+        );
+      }
+
+      debugPrint('recordStudentAttendanceViaQr error: $e');
+      return AttendanceScanResult(
+        status: AttendanceScanStatus.error,
+        message:
+            'Failed to record attendance: ${msg.replaceAll('Exception: ', '')}',
+      );
+    }
+  }
 }
+
+

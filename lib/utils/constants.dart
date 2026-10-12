@@ -77,8 +77,10 @@ class UserRoles {
 
   static const List<String> allRoles = [student, faculty, coordinator, admin];
 
-  static bool isAdminOrStaff(String role) {
-    return role == admin || role == faculty || role == coordinator;
+  static bool isAdminOrStaff(String? role) {
+    if (role == null) return false;
+    final r = role.trim().toLowerCase();
+    return r == admin || r == faculty || r == coordinator;
   }
 }
 
@@ -111,6 +113,102 @@ class EventStatuses {
 class RegistrationStatuses {
   static const String registered = 'registered';
   static const String cancelled = 'cancelled';
+}
+
+class AcademicYears {
+  static const String all = 'All Years';
+  static const String year1 = '1st Year';
+  static const String year2 = '2nd Year';
+  static const String year3 = '3rd Year';
+  static const String year4 = '4th Year';
+
+  static const List<String> years = [
+    year1,
+    year2,
+    year3,
+    year4,
+  ];
+
+  static const List<String> allWithOption = [
+    all,
+    year1,
+    year2,
+    year3,
+    year4,
+  ];
+
+  /// Normalizes year string for robust matching (e.g. '2nd', '2', '2nd Year')
+  static String normalize(String input) {
+    final clean = input.trim().toLowerCase();
+    if (clean.contains('1') || clean.contains('first')) return year1;
+    if (clean.contains('2') || clean.contains('second')) return year2;
+    if (clean.contains('3') || clean.contains('third')) return year3;
+    if (clean.contains('4') || clean.contains('fourth')) return year4;
+    return input.trim();
+  }
+
+  static bool matches(List<String> allowedYears, String studentYear) {
+    if (allowedYears.isEmpty || allowedYears.contains('All') || allowedYears.contains(all)) {
+      return true;
+    }
+    if (studentYear.trim().isEmpty) return false;
+    final normalizedStudent = normalize(studentYear);
+    return allowedYears.any((y) => normalize(y) == normalizedStudent || y == studentYear);
+  }
+}
+
+class AcademicDepartments {
+  static const String all = 'All Departments';
+  static const String it = 'Information Technology';
+  static const String cse = 'Computer Science';
+  static const String ece = 'Electronics & Communication';
+  static const String eee = 'Electrical & Electronics';
+  static const String mech = 'Mechanical Engineering';
+  static const String civil = 'Civil Engineering';
+  static const String aiDs = 'AI & Data Science';
+
+  static const List<String> departments = [
+    it,
+    cse,
+    ece,
+    eee,
+    mech,
+    civil,
+    aiDs,
+  ];
+
+  static const List<String> allWithOption = [
+    all,
+    it,
+    cse,
+    ece,
+    eee,
+    mech,
+    civil,
+    aiDs,
+  ];
+
+  /// Normalizes department string for robust matching (e.g. 'CSE' -> 'Computer Science')
+  static String normalize(String input) {
+    final clean = input.trim().toLowerCase();
+    if (clean == 'it' || clean.contains('information tech')) return it;
+    if (clean == 'cse' || clean == 'cs' || clean.contains('computer science')) return cse;
+    if (clean == 'ece' || clean.contains('electronics') && clean.contains('comm')) return ece;
+    if (clean == 'eee' || clean.contains('electrical')) return eee;
+    if (clean == 'mech' || clean.contains('mechanical')) return mech;
+    if (clean == 'civil' || clean.contains('civil')) return civil;
+    if (clean.contains('ai') || clean.contains('data science') || clean == 'aids') return aiDs;
+    return input.trim();
+  }
+
+  static bool matches(List<String> allowedDepts, String studentDept) {
+    if (allowedDepts.isEmpty || allowedDepts.contains('All') || allowedDepts.contains(all)) {
+      return true;
+    }
+    if (studentDept.trim().isEmpty) return false;
+    final normalizedStudent = normalize(studentDept);
+    return allowedDepts.any((d) => normalize(d) == normalizedStudent || d.toLowerCase() == studentDept.toLowerCase());
+  }
 }
 
 class PaymentStatuses {

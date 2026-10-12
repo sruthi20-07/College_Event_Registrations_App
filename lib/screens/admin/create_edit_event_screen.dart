@@ -27,11 +27,22 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
   late TextEditingController _startTimeController;
   late TextEditingController _endTimeController;
   late TextEditingController _posterUrlController;
+  late TextEditingController _minCgpaController;
+  late TextEditingController _requirementsController;
 
   String _selectedCategory = EventCategories.technical;
   String _selectedStatus = EventStatuses.upcoming;
   DateTime _selectedDate = DateTime.now().add(const Duration(days: 7));
   DateTime _selectedDeadline = DateTime.now().add(const Duration(days: 6));
+
+  // Eligibility state
+  bool _allYears = true;
+  Set<String> _selectedYears = {};
+  bool _allDepartments = true;
+  Set<String> _selectedDepartments = {};
+
+  // Coordinator state
+  List<EventCoordinator> _coordinators = [];
 
   bool _isLoading = false;
 
@@ -57,12 +68,35 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
     );
     _endTimeController = TextEditingController(text: e?.endTime ?? '4:00 PM');
     _posterUrlController = TextEditingController(text: e?.posterUrl ?? '');
+    _minCgpaController = TextEditingController(
+      text: (e != null && e.minCgpa > 0) ? e.minCgpa.toString() : '',
+    );
+    _requirementsController = TextEditingController(
+      text: e?.requirements ?? '',
+    );
 
     if (e != null) {
       _selectedCategory = e.category;
       _selectedStatus = e.status;
       _selectedDate = e.date;
       _selectedDeadline = e.registrationDeadline;
+      _coordinators = List<EventCoordinator>.from(e.coordinators);
+
+      if (e.allowedYears.isNotEmpty && !e.isAllYears) {
+        _allYears = false;
+        _selectedYears = e.allowedYears.toSet();
+      } else {
+        _allYears = true;
+        _selectedYears = {};
+      }
+
+      if (e.allowedDepartments.isNotEmpty && !e.isAllDepartments) {
+        _allDepartments = false;
+        _selectedDepartments = e.allowedDepartments.toSet();
+      } else {
+        _allDepartments = true;
+        _selectedDepartments = {};
+      }
     }
   }
 
@@ -77,6 +111,8 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
     _startTimeController.dispose();
     _endTimeController.dispose();
     _posterUrlController.dispose();
+    _minCgpaController.dispose();
+    _requirementsController.dispose();
     super.dispose();
   }
 
@@ -116,12 +152,166 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
     }
   }
 
+  void _showCoordinatorDialog({EventCoordinator? initialCoordinator, int? editIndex}) {
+    final nameCtrl = TextEditingController(text: initialCoordinator?.name ?? '');
+    final roleCtrl = TextEditingController(text: initialCoordinator?.role ?? '');
+    final phoneCtrl = TextEditingController(text: initialCoordinator?.phone ?? '');
+    final emailCtrl = TextEditingController(text: initialCoordinator?.email ?? '');
+    final whatsappCtrl = TextEditingController(text: initialCoordinator?.whatsapp ?? '');
+    final coordFormKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        return AlertDialog(
+          backgroundColor: AppColors.cardWhite,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.lavenderLight,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.person_pin_outlined,
+                  color: AppColors.lavenderDark,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                editIndex != null ? 'Edit Coordinator' : 'Add Coordinator',
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textMain,
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: SizedBox(
+              width: 420,
+              child: Form(
+                key: coordFormKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextFormField(
+                      controller: nameCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Coordinator Name *',
+                        prefixIcon: Icon(Icons.person_outline, color: AppColors.textSecondary),
+                      ),
+                      validator: (v) =>
+                          v == null || v.trim().isEmpty ? 'Name is required' : null,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: roleCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Role / Responsibility *',
+                        hintText: 'e.g. Student Lead, Faculty In-charge',
+                        prefixIcon: Icon(Icons.badge_outlined, color: AppColors.textSecondary),
+                      ),
+                      validator: (v) =>
+                          v == null || v.trim().isEmpty ? 'Role is required' : null,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: phoneCtrl,
+                      keyboardType: TextInputType.phone,
+                      decoration: const InputDecoration(
+                        labelText: 'Phone Number *',
+                        hintText: '10-digit mobile number',
+                        prefixIcon: Icon(Icons.phone_outlined, color: AppColors.textSecondary),
+                      ),
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty) return 'Phone number is required';
+                        if (v.trim().replaceAll(RegExp(r'\D'), '').length < 10) {
+                          return 'Enter a valid 10-digit phone number';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: emailCtrl,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: const InputDecoration(
+                        labelText: 'Email Address *',
+                        hintText: 'coordinator@college.edu',
+                        prefixIcon: Icon(Icons.email_outlined, color: AppColors.textSecondary),
+                      ),
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty) return 'Email is required';
+                        if (!v.contains('@') || !v.contains('.')) {
+                          return 'Enter a valid email address';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: whatsappCtrl,
+                      keyboardType: TextInputType.phone,
+                      decoration: const InputDecoration(
+                        labelText: 'WhatsApp Contact (Optional)',
+                        hintText: '+91 9876543210',
+                        prefixIcon: Icon(Icons.chat_outlined, color: AppColors.mintDark),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.coral,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () {
+                if (!coordFormKey.currentState!.validate()) return;
+                final newCoordinator = EventCoordinator(
+                  name: nameCtrl.text.trim(),
+                  role: roleCtrl.text.trim(),
+                  phone: phoneCtrl.text.trim(),
+                  email: emailCtrl.text.trim(),
+                  whatsapp: whatsappCtrl.text.trim(),
+                );
+                setState(() {
+                  if (editIndex != null) {
+                    _coordinators[editIndex] = newCoordinator;
+                  } else {
+                    _coordinators.add(newCoordinator);
+                  }
+                });
+                Navigator.pop(dialogCtx);
+              },
+              child: Text(editIndex != null ? 'Save Changes' : 'Add Coordinator'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _saveEvent() async {
     if (_isLoading) return;
     if (!_formKey.currentState!.validate()) return;
 
     final int capacity = int.tryParse(_capacityController.text.trim()) ?? 0;
     final double fee = double.tryParse(_feeController.text.trim()) ?? 0.0;
+    final double minCgpa = double.tryParse(_minCgpaController.text.trim()) ?? 0.0;
 
     if (capacity <= 0) {
       _showSnackBar('Capacity must be greater than 0', isError: true);
@@ -132,6 +322,19 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
       _showSnackBar('Registration fee cannot be negative', isError: true);
       return;
     }
+
+    if (minCgpa < 0 || minCgpa > 10) {
+      _showSnackBar('CGPA must be between 0.0 and 10.0', isError: true);
+      return;
+    }
+
+    // Prepare configured eligibility lists
+    final List<String> finalAllowedYears = _allYears
+        ? []
+        : _selectedYears.toList();
+    final List<String> finalAllowedDepts = _allDepartments
+        ? []
+        : _selectedDepartments.toList();
 
     setState(() {
       _isLoading = true;
@@ -160,6 +363,11 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
           registrationDeadline: _selectedDeadline,
           status: _selectedStatus,
           posterUrl: finalPosterUrl,
+          coordinators: _coordinators,
+          allowedYears: finalAllowedYears,
+          allowedDepartments: finalAllowedDepts,
+          minCgpa: minCgpa,
+          requirements: _requirementsController.text.trim(),
           updatedAt: DateTime.now(),
         );
 
@@ -182,6 +390,11 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
           registrationFee: fee,
           registrationDeadline: _selectedDeadline,
           status: _selectedStatus,
+          coordinators: _coordinators,
+          allowedYears: finalAllowedYears,
+          allowedDepartments: finalAllowedDepts,
+          minCgpa: minCgpa,
+          requirements: _requirementsController.text.trim(),
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
         );
@@ -345,7 +558,7 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
                               ),
                               const SizedBox(height: 2),
                               const Text(
-                                'Provide complete details for students to discover and register',
+                                'Provide complete details, eligibility criteria & coordinator contacts',
                                 style: TextStyle(
                                   color: AppColors.textSecondary,
                                   fontSize: 13,
@@ -759,6 +972,437 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
                             }
                           },
                         ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // ELIGIBILITY CONFIGURATION
+                  _buildSectionHeader(
+                    Icons.how_to_reg_outlined,
+                    'Eligibility Criteria',
+                    'Specify target academic years, departments, and prerequisites',
+                  ),
+                  const SizedBox(height: 12),
+
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.cardWhite,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Target Academic Years
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Target Academic Years',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: AppColors.textMain,
+                              ),
+                            ),
+                            Row(
+                              children: [
+                                FilterChip(
+                                  selected: _allYears,
+                                  label: const Text('All Years'),
+                                  selectedColor: AppColors.sageLight,
+                                  checkmarkColor: AppColors.sageDark,
+                                  labelStyle: TextStyle(
+                                    color: _allYears ? AppColors.sageDark : AppColors.textSecondary,
+                                    fontWeight: _allYears ? FontWeight.bold : FontWeight.normal,
+                                    fontSize: 12,
+                                  ),
+                                  onSelected: (selected) {
+                                    setState(() {
+                                      _allYears = selected;
+                                      if (selected) _selectedYears.clear();
+                                    });
+                                  },
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: AcademicYears.years.map((year) {
+                            final isSelected = !_allYears && _selectedYears.contains(year);
+                            return FilterChip(
+                              label: Text(year),
+                              selected: isSelected,
+                              selectedColor: AppColors.lavenderLight,
+                              checkmarkColor: AppColors.lavenderDark,
+                              labelStyle: TextStyle(
+                                color: isSelected ? AppColors.lavenderDark : AppColors.textMain,
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                fontSize: 13,
+                              ),
+                              onSelected: (selected) {
+                                setState(() {
+                                  if (selected) {
+                                    _allYears = false;
+                                    _selectedYears.add(year);
+                                  } else {
+                                    _selectedYears.remove(year);
+                                    if (_selectedYears.isEmpty) {
+                                      _allYears = true;
+                                    }
+                                  }
+                                });
+                              },
+                            );
+                          }).toList(),
+                        ),
+
+                        const SizedBox(height: 18),
+                        const Divider(color: AppColors.border),
+                        const SizedBox(height: 12),
+
+                        // Target Departments
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Target Departments / Branches',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: AppColors.textMain,
+                              ),
+                            ),
+                            FilterChip(
+                              selected: _allDepartments,
+                              label: const Text('All Branches'),
+                              selectedColor: AppColors.sageLight,
+                              checkmarkColor: AppColors.sageDark,
+                              labelStyle: TextStyle(
+                                color: _allDepartments ? AppColors.sageDark : AppColors.textSecondary,
+                                fontWeight: _allDepartments ? FontWeight.bold : FontWeight.normal,
+                                fontSize: 12,
+                              ),
+                              onSelected: (selected) {
+                                setState(() {
+                                  _allDepartments = selected;
+                                  if (selected) _selectedDepartments.clear();
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: AcademicDepartments.departments.map((dept) {
+                            final isSelected = !_allDepartments && _selectedDepartments.contains(dept);
+                            return FilterChip(
+                              label: Text(dept),
+                              selected: isSelected,
+                              selectedColor: AppColors.skyBlueLight,
+                              checkmarkColor: AppColors.skyBlueDark,
+                              labelStyle: TextStyle(
+                                color: isSelected ? AppColors.skyBlueDark : AppColors.textMain,
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                fontSize: 12,
+                              ),
+                              onSelected: (selected) {
+                                setState(() {
+                                  if (selected) {
+                                    _allDepartments = false;
+                                    _selectedDepartments.add(dept);
+                                  } else {
+                                    _selectedDepartments.remove(dept);
+                                    if (_selectedDepartments.isEmpty) {
+                                      _allDepartments = true;
+                                    }
+                                  }
+                                });
+                              },
+                            );
+                          }).toList(),
+                        ),
+
+                        const SizedBox(height: 18),
+                        const Divider(color: AppColors.border),
+                        const SizedBox(height: 12),
+
+                        // Additional Requirements / Min CGPA
+                        Row(
+                          children: [
+                            Expanded(
+                              flex: 2,
+                              child: TextFormField(
+                                controller: _minCgpaController,
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                decoration: const InputDecoration(
+                                  labelText: 'Min CGPA (Optional)',
+                                  hintText: 'e.g. 7.5 (0 = None)',
+                                  prefixIcon: Icon(Icons.star_outline, color: AppColors.sunnyYellow),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              flex: 3,
+                              child: TextFormField(
+                                controller: _requirementsController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Special Requirements / Notes',
+                                  hintText: 'e.g. Laptop required, ID card',
+                                  prefixIcon: Icon(Icons.rule_outlined, color: AppColors.textSecondary),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // COORDINATOR MANAGEMENT
+                  _buildSectionHeader(
+                    Icons.contact_phone_outlined,
+                    'Event Coordinators',
+                    'Add contact persons for student inquiries and support',
+                  ),
+                  const SizedBox(height: 12),
+
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.cardWhite,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (_coordinators.isEmpty)
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                            decoration: BoxDecoration(
+                              color: AppColors.lavenderLight.withValues(alpha: 0.5),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: AppColors.lavender.withValues(alpha: 0.3),
+                                style: BorderStyle.solid,
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                const Icon(
+                                  Icons.person_add_alt_1_outlined,
+                                  size: 36,
+                                  color: AppColors.lavenderDark,
+                                ),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  'No coordinators added yet',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    color: AppColors.textMain,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                const Text(
+                                  'Add faculty or student coordinators for event inquiries',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                ElevatedButton.icon(
+                                  onPressed: () => _showCoordinatorDialog(),
+                                  icon: const Icon(Icons.add, size: 18),
+                                  label: const Text('Add Coordinator'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.lavender,
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        else ...[
+                          ListView.separated(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: _coordinators.length,
+                            separatorBuilder: (context, index) => const SizedBox(height: 10),
+                            itemBuilder: (context, index) {
+                              final coord = _coordinators[index];
+                              return Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: AppColors.background,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: AppColors.border),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.lavenderLight,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.person,
+                                        color: AppColors.lavenderDark,
+                                        size: 20,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Text(
+                                                coord.name,
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 14,
+                                                  color: AppColors.textMain,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 6),
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(
+                                                  horizontal: 6,
+                                                  vertical: 2,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: AppColors.lavenderLight,
+                                                  borderRadius: BorderRadius.circular(4),
+                                                ),
+                                                child: Text(
+                                                  coord.role,
+                                                  style: const TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: AppColors.lavenderDark,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 3),
+                                          Row(
+                                            children: [
+                                              const Icon(
+                                                Icons.phone,
+                                                size: 13,
+                                                color: AppColors.textSecondary,
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                coord.phone,
+                                                style: const TextStyle(
+                                                  fontSize: 12,
+                                                  color: AppColors.textSecondary,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              const Icon(
+                                                Icons.email_outlined,
+                                                size: 13,
+                                                color: AppColors.textSecondary,
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Expanded(
+                                                child: Text(
+                                                  coord.email,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                    fontSize: 12,
+                                                    color: AppColors.textSecondary,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          if (coord.whatsapp.isNotEmpty) ...[
+                                            const SizedBox(height: 2),
+                                            Row(
+                                              children: [
+                                                const Icon(
+                                                  Icons.chat,
+                                                  size: 12,
+                                                  color: AppColors.mintDark,
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  'WhatsApp: ${coord.whatsapp}',
+                                                  style: const TextStyle(
+                                                    fontSize: 11,
+                                                    color: AppColors.mintDark,
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.edit_outlined, size: 18, color: AppColors.textSecondary),
+                                      tooltip: 'Edit Coordinator',
+                                      onPressed: () => _showCoordinatorDialog(
+                                        initialCoordinator: coord,
+                                        editIndex: index,
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.pinkDark),
+                                      tooltip: 'Remove Coordinator',
+                                      onPressed: () {
+                                        setState(() {
+                                          _coordinators.removeAt(index);
+                                        });
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            onPressed: () => _showCoordinatorDialog(),
+                            icon: const Icon(Icons.add, size: 18),
+                            label: const Text('Add Another Coordinator'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.lavenderDark,
+                              side: const BorderSide(color: AppColors.lavender),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),

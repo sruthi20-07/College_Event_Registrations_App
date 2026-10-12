@@ -1,4 +1,5 @@
 import '../models/event_model.dart';
+import '../utils/constants.dart';
 
 final List<EventModel> events = [
   EventModel(
@@ -17,6 +18,26 @@ final List<EventModel> events = [
     availableSeats: 48,
     registrationFee: 100,
     registrationDeadline: DateTime(2026, 10, 17),
+    allowedYears: const [AcademicYears.year2, AcademicYears.year3, AcademicYears.year4],
+    allowedDepartments: const [AcademicDepartments.cse, AcademicDepartments.it, AcademicDepartments.aiDs],
+    minCgpa: 6.5,
+    requirements: 'Bring your student ID card and laptop.',
+    coordinators: const [
+      EventCoordinator(
+        name: 'Dr. Ramesh Kumar',
+        role: 'Faculty Coordinator',
+        phone: '9876543210',
+        email: 'ramesh.k@college.edu',
+        whatsapp: '+919876543210',
+      ),
+      EventCoordinator(
+        name: 'Priya Sharma',
+        role: 'Student Lead',
+        phone: '9876500001',
+        email: 'priya.s@student.college.edu',
+        whatsapp: '+919876500001',
+      ),
+    ],
   ),
   EventModel(
     id: 'EVT002',
@@ -34,6 +55,18 @@ final List<EventModel> events = [
     availableSeats: 25,
     registrationFee: 50,
     registrationDeadline: DateTime(2026, 10, 19),
+    allowedYears: const [AcademicYears.year2, AcademicYears.year3],
+    allowedDepartments: const [], // Open to all departments
+    minCgpa: 0.0,
+    requirements: 'Install Flutter SDK and VS Code before attending.',
+    coordinators: const [
+      EventCoordinator(
+        name: 'Prof. Anitha Rao',
+        role: 'Faculty In-Charge',
+        phone: '9845012345',
+        email: 'anitha.rao@college.edu',
+      ),
+    ],
   ),
   EventModel(
     id: 'EVT003',
@@ -51,6 +84,16 @@ final List<EventModel> events = [
     availableSeats: 120,
     registrationFee: 0,
     registrationDeadline: DateTime(2026, 10, 21),
+    allowedYears: const [], // All years
+    allowedDepartments: const [], // All departments
+    coordinators: const [
+      EventCoordinator(
+        name: 'Kavitha Nair',
+        role: 'Cultural Secretary',
+        phone: '9812345678',
+        email: 'cultural@college.edu',
+      ),
+    ],
   ),
   EventModel(
     id: 'EVT004',
@@ -68,6 +111,16 @@ final List<EventModel> events = [
     availableSeats: 70,
     registrationFee: 200,
     registrationDeadline: DateTime(2026, 10, 24),
+    allowedYears: const [],
+    allowedDepartments: const [],
+    coordinators: const [
+      EventCoordinator(
+        name: 'Coach Vikram Singh',
+        role: 'Sports Director',
+        phone: '9823456789',
+        email: 'sports@college.edu',
+      ),
+    ],
   ),
   EventModel(
     id: 'EVT005',
@@ -85,6 +138,16 @@ final List<EventModel> events = [
     availableSeats: 55,
     registrationFee: 0,
     registrationDeadline: DateTime(2026, 10, 27),
+    allowedYears: const [AcademicYears.year3, AcademicYears.year4],
+    allowedDepartments: const [AcademicDepartments.cse, AcademicDepartments.it, AcademicDepartments.aiDs, AcademicDepartments.ece],
+    coordinators: const [
+      EventCoordinator(
+        name: 'Dr. Sunita Murthy',
+        role: 'AI Dept Lead',
+        phone: '9834567890',
+        email: 'sunita.m@college.edu',
+      ),
+    ],
   ),
   EventModel(
     id: 'EVT006',
@@ -102,6 +165,16 @@ final List<EventModel> events = [
     availableSeats: 32,
     registrationFee: 150,
     registrationDeadline: DateTime(2026, 10, 31),
+    allowedYears: const [AcademicYears.year2, AcademicYears.year3, AcademicYears.year4],
+    allowedDepartments: const [],
+    coordinators: const [
+      EventCoordinator(
+        name: 'Rahul Varma',
+        role: 'Hackathon Lead',
+        phone: '9845678901',
+        email: 'hackathon@college.edu',
+      ),
+    ],
   ),
 ];
 

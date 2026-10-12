@@ -47,34 +47,59 @@ class FeaturedEventCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // BADGE
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.9),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.star_rounded,
-                        size: 14,
-                        color: AppColors.coral,
+                // BADGES
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.9),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: AppColors.border),
                       ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'FEATURED ${event.category.toUpperCase()}',
-                        style: const TextStyle(
-                          color: AppColors.textMain,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 11,
-                          letterSpacing: 0.5,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.star_rounded,
+                            size: 14,
+                            color: AppColors.coral,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'FEATURED ${event.category.toUpperCase()}',
+                            style: const TextStyle(
+                              color: AppColors.textMain,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (!event.isAllYears || !event.isAllDepartments) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.lavenderLight,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: AppColors.lavender.withValues(alpha: 0.5)),
+                        ),
+                        child: Text(
+                          !event.isAllYears
+                              ? event.allowedYears.join(', ')
+                              : event.allowedDepartments.join(', '),
+                          style: const TextStyle(
+                            color: AppColors.lavenderDark,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 10,
+                          ),
                         ),
                       ),
                     ],
-                  ),
+                  ],
                 ),
                 const SizedBox(height: 12),
                 Text(

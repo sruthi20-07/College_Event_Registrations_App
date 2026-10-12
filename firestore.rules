@@ -47,13 +47,20 @@ service cloud.firestore {
           resource.data.studentId == request.auth.uid ||
           resource.data.userId == request.auth.uid
         ) &&
-        // Prevent student from marking themselves attended or changing admin verification
+        // Prevent student from directly marking themselves attended or forging attendance fields
         !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-          'attended', 'attendanceStatus', 'attendedAt', 'verifiedByAdminUid', 'verifiedByAdminEmail'
+          'attended', 'attendanceStatus', 'attendedAt', 'verifiedByAdminUid', 'verifiedByAdminEmail', 'checkInMethod', 'attendanceSessionId'
         ])
       );
 
       allow delete: if isAdmin();
+    }
+
+    // Live Attendance Sessions collection (Admin generated rotating QR sessions)
+    match /attendance_sessions/{sessionId} {
+      // Authenticated users can read session info; only admins can create, rotate, or close sessions
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin();
     }
 
     // Attendance verification audit logs collection
@@ -63,20 +70,68 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+
     // Gamification & Rewards profile collection
     match /gamification/{studentId} {
-      // Students can read their own gamification profile; admins can read all
-      allow read: if isAuthenticated() && (request.auth.uid == studentId || isAdmin());
-      // Only authorized admin check-in transactions can award coins and update streaks/badges
-      allow write: if isAdmin();
+      // Authenticated users can read gamification profiles (needed for leaderboard and profile)
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (request.auth.uid == studentId || isAdmin());
+      allow update: if isAdmin() || (
+        isAuthenticated() && request.auth.uid == studentId &&
+        // Prevent student from arbitrarily inflating lifetime achievement coins or attended events directly
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'lifetimeCoins', 'totalEventsAttended', 'longestStreak'
+        ])
+      );
+      allow delete: if isAdmin();
     }
 
     // Reward history collection (idempotency ledger)
     match /reward_history/{rewardId} {
       // Students can read their own reward history; admins can read all
       allow read: if isAuthenticated() && (resource.data.studentId == request.auth.uid || isAdmin());
-      // Only authorized admin check-in transactions can create reward entries
+      // Admins can write all entries; students can create their own debit transaction during redemption
+      allow create: if isAdmin() || (
+        isAuthenticated() && request.resource.data.studentId == request.auth.uid
+      );
+      allow update, delete: if isAdmin();
+    }
+
+    // Rewards Catalogue collection
+    match /rewards/{rewardId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Reward Redemptions collection
+    match /redemptions/{redemptionId} {
+      // Students can read their own redemptions; admins can read all
+      allow read: if isAdmin() || (
+        isAuthenticated() && resource.data.studentId == request.auth.uid
+      );
+      // Students can create their own redemption request; admins can create all
+      allow create: if isAuthenticated() && (
+        request.resource.data.studentId == request.auth.uid || isAdmin()
+      );
+      // Only admins can approve, fulfil, reject, or delete redemptions
+      allow update, delete: if isAdmin();
+    }
+
+    // Gamification Earning Rules collection
+    match /gamification_rules/{ruleId} {
+      allow read: if isAuthenticated();
       allow write: if isAdmin();
+    }
+
+    // Referrals collection
+    match /referrals/{referralId} {
+      allow read: if isAuthenticated() && (
+        resource.data.referrerUid == request.auth.uid ||
+        resource.data.referredUid == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
     }
 
     // Saved events collection

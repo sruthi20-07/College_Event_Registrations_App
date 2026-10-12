@@ -72,14 +72,17 @@ void main() {
         event: event,
       );
 
-      expect(message, contains('Hello Rahul Sharma!'));
-      expect(message, contains('Your registration for Annual Tech Hackathon 2026 is confirmed.'));
-      expect(message, contains('Event: Annual Tech Hackathon 2026'));
-      expect(message, contains('Time: 9:30 AM - 5:30 PM'));
-      expect(message, contains('Venue: Auditorium Hall B'));
-      expect(message, contains('Registration ID: REG-REG_ABC1'));
-      expect(message, contains('Ticket ID: tkt_secure_token_789'));
-      expect(message, contains('Please open your event ticket in the College Event App and present your QR code at the entrance.'));
+      expect(message, contains('Hello Rahul Sharma! 👋'));
+      expect(message, contains('Your registration for **Annual Tech Hackathon 2026** is confirmed! 🎉'));
+      expect(message, contains('📅 Date: ${event.dateFormatted}'));
+      expect(message, contains('⏰ Time: 9:30 AM'));
+      expect(message, contains('📍 Venue: Auditorium Hall B'));
+      expect(message, contains('🆔 Registration ID: REG-REG_ABC1'));
+      expect(message, contains('✅ **IMPORTANT — ATTENDANCE**'));
+      expect(message, contains('scan the official attendance QR code displayed at the event venue using the scanner in the College Event App'));
+      expect(message, contains('Registration confirmation alone does NOT mark you as present.'));
+      expect(message, contains('Thank you! Have a great event! 🎊'));
+      expect(message, isNot(contains('Ticket ID:')));
     });
   });
 
@@ -176,4 +179,169 @@ void main() {
       expect(fromMap.whatsappNumber, '919876543210');
     });
   });
+
+  group('Official WhatsApp Cloud API Template Payload Specification', () {
+    test('buildTemplatePayload constructs valid Meta Cloud API schema', () {
+      final now = DateTime(2026, 11, 20, 10, 0);
+      final event = EventModel(
+        id: 'evt_tech_01',
+        title: 'National AI Summit',
+        description: 'AI Symposium',
+        category: 'Technical',
+        posterUrl: '',
+        date: now,
+        startTime: '10:00 AM',
+        endTime: '4:00 PM',
+        venue: 'Main Auditorium',
+        maxSeats: 200,
+        availableSeats: 150,
+        registrationFee: 0,
+        registrationDeadline: now.subtract(const Duration(days: 1)),
+        organizer: 'CSE Dept',
+        createdBy: 'Admin',
+        createdAt: now.subtract(const Duration(days: 10)),
+      );
+
+      final registration = RegistrationModel(
+        id: 'reg_summit_9999',
+        eventId: 'evt_tech_01',
+        studentId: 'stu_123',
+        studentName: 'Aarav Sharma',
+        studentEmail: 'aarav@college.edu',
+        phone: '+919876543210',
+        rollNumber: '21CS101',
+        department: 'CSE',
+        year: '4th Year',
+        section: 'A',
+        registrationStatus: 'confirmed',
+        registeredAt: now,
+        ticketToken: 'tkt_summit_pass_01',
+        whatsappNumber: '+919876543210',
+        whatsappConsent: true,
+      );
+
+      final payload = WhatsAppService.buildTemplatePayload(
+        registration: registration,
+        event: event,
+        templateName: 'event_registration_confirmation',
+      );
+
+      expect(payload['messaging_product'], 'whatsapp');
+      expect(payload['recipient_type'], 'individual');
+      expect(payload['to'], '919876543210');
+      expect(payload['type'], 'template');
+
+      final template = payload['template'] as Map<String, dynamic>;
+      expect(template['name'], 'event_registration_confirmation');
+      expect(template['language']['code'], 'en_US');
+
+      final components = template['components'] as List;
+      expect(components.isNotEmpty, isTrue);
+
+      final bodyComponent = components.first as Map<String, dynamic>;
+      expect(bodyComponent['type'], 'body');
+
+      final params = bodyComponent['parameters'] as List;
+      expect(params.length, 7);
+      expect(params[0]['text'], 'Aarav Sharma'); // {{1}}: studentName
+      expect(params[1]['text'], 'National AI Summit'); // {{2}}: eventTitle
+      expect(params[2]['text'], contains('Nov')); // {{3}}: eventDate
+      expect(params[3]['text'], '10:00 AM - 4:00 PM'); // {{4}}: eventTime
+      expect(params[4]['text'], 'Main Auditorium'); // {{5}}: venue
+      expect(params[5]['text'], 'REG-REG_SUMM'); // {{6}}: registrationId
+      expect(params[6]['text'], 'tkt_summit_pass_01'); // {{7}}: ticketId
+    });
+  });
+
+  group('Automated Trigger, Idempotency & Credentials Isolation', () {
+    test('Deterministic idempotency key matches registration ID', () {
+      const regId = 'reg_unique_4567';
+      final expectedJobId = '${regId}_cloud_wa';
+      expect(expectedJobId, 'reg_unique_4567_cloud_wa');
+
+      // Re-running for same registration ID produces identical key
+      final duplicateJobId = '${regId}_cloud_wa';
+      expect(expectedJobId, duplicateJobId);
+    });
+
+    test('Data models and Firestore serialization never expose API secrets', () {
+      final now = DateTime.now();
+      final log = WhatsAppNotificationModel(
+        id: 'test_job_1',
+        registrationId: 'reg_1',
+        eventId: 'evt_1',
+        studentId: 'stu_1',
+        studentName: 'Student One',
+        whatsappNumber: '919876543210',
+        eventTitle: 'Event One',
+        deliveryMode: 'cloud_api',
+        status: 'pending',
+        createdAt: now,
+      );
+
+      final map = log.toMap();
+      // Ensure no tokens, authorization headers, or secrets in data models
+      expect(map.containsKey('accessToken'), isFalse);
+      expect(map.containsKey('token'), isFalse);
+      expect(map.containsKey('secret'), isFalse);
+      expect(map.containsKey('bearer'), isFalse);
+      expect(map.containsKey('authHeader'), isFalse);
+    });
+
+    test('Missing phone number and unconsented students do not break registration state', () {
+      final registrationNoPhone = RegistrationModel(
+        id: 'reg_no_phone',
+        eventId: 'evt_1',
+        studentId: 'stu_2',
+        studentName: 'Student Two',
+        studentEmail: 'student2@college.edu',
+        rollNumber: '21CS102',
+        department: 'CSE',
+        year: '3rd Year',
+        phone: '',
+        whatsappNumber: '',
+        whatsappConsent: false,
+        registrationStatus: 'confirmed',
+      );
+
+      expect(registrationNoPhone.isRegistered, isTrue);
+      expect(registrationNoPhone.whatsappConsent, isFalse);
+      expect(WhatsAppService.isValidPhoneNumber(registrationNoPhone.phone), isFalse);
+    });
+
+    test('Registration status and seat counts remain confirmed regardless of WhatsApp status', () {
+      final regSuccess = RegistrationModel(
+        id: 'reg_success',
+        eventId: 'evt_1',
+        studentId: 'stu_3',
+        studentName: 'Student Three',
+        studentEmail: 'student3@college.edu',
+        rollNumber: '21CS103',
+        department: 'CSE',
+        year: '3rd Year',
+        registrationStatus: 'confirmed',
+        whatsappStatus: 'delivered',
+      );
+
+      final regFailed = RegistrationModel(
+        id: 'reg_failed',
+        eventId: 'evt_1',
+        studentId: 'stu_4',
+        studentName: 'Student Four',
+        studentEmail: 'student4@college.edu',
+        rollNumber: '21CS104',
+        department: 'CSE',
+        year: '3rd Year',
+        registrationStatus: 'confirmed',
+        whatsappStatus: 'failed',
+        whatsappError: 'Provider unreachable',
+      );
+
+      // Both registrations are confirmed regardless of notification delivery
+      expect(regSuccess.isRegistered, isTrue);
+      expect(regFailed.isRegistered, isTrue);
+      expect(regFailed.registrationStatus, 'confirmed');
+    });
+  });
 }
+

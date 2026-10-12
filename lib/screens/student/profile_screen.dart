@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/gamification_model.dart';
@@ -9,7 +8,7 @@ import '../../services/gamification_service.dart';
 import '../../services/registration_service.dart';
 import '../../services/storage_service.dart';
 import '../../utils/constants.dart';
-import '../auth/login_screen.dart';
+import '../auth/auth_wrapper.dart';
 import 'gamification_dashboard_screen.dart';
 import 'saved_events_screen.dart';
 import 'student_feedback_dialog.dart';
@@ -599,7 +598,6 @@ class ProfileScreen extends StatelessWidget {
               onPressed: () async {
                 Navigator.pop(dialogContext);
                 try {
-                  await FirebaseAuth.instance.signOut();
                   await authService.signOut();
                 } catch (e) {
                   debugPrint('Logout error: $e');
@@ -608,7 +606,7 @@ class ProfileScreen extends StatelessWidget {
                 if (!context.mounted) return;
 
                 Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (context) => const LoginScreen()),
+                  MaterialPageRoute(builder: (context) => const AuthWrapper()),
                   (route) => false,
                 );
               },

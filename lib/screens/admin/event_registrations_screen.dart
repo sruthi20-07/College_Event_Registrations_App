@@ -5,8 +5,9 @@ import '../../models/registration_model.dart';
 import '../../services/event_service.dart';
 import '../../services/registration_service.dart';
 import '../../utils/constants.dart';
-import '../../utils/csv_export_helper.dart';
 import '../../utils/date_formatter.dart';
+import '../../utils/excel_export_helper.dart';
+import 'event_registration_report_screen.dart';
 
 class EventRegistrationsScreen extends StatefulWidget {
   const EventRegistrationsScreen({super.key});
@@ -22,6 +23,9 @@ class _EventRegistrationsScreenState extends State<EventRegistrationsScreen> {
 
   String? _selectedEventId;
   String _searchQuery = '';
+  bool _isExporting = false;
+  List<EventModel> _allEvents = [];
+  Map<String, String> _eventTitlesMap = {};
 
   @override
   Widget build(BuildContext context) {
@@ -33,6 +37,28 @@ class _EventRegistrationsScreenState extends State<EventRegistrationsScreen> {
         foregroundColor: AppColors.textMain,
         elevation: 0,
         centerTitle: true,
+        actions: [
+          IconButton(
+            tooltip: 'View Full Report Table',
+            icon: const Icon(Icons.table_view_rounded, color: AppColors.lavenderDark),
+            onPressed: () {
+              EventModel? selectedEvent;
+              if (_selectedEventId != null && _allEvents.isNotEmpty) {
+                final matched = _allEvents.where((e) => e.id == _selectedEventId).toList();
+                if (matched.isNotEmpty) selectedEvent = matched.first;
+              }
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => EventRegistrationReportScreen(
+                    initialEvent: selectedEvent,
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(width: 4),
+        ],
       ),
       body: Center(
         child: ConstrainedBox(
@@ -46,12 +72,14 @@ class _EventRegistrationsScreenState extends State<EventRegistrationsScreen> {
                   stream: _eventService.streamAllEventsAdmin(),
                   builder: (context, eventSnapshot) {
                     final events = eventSnapshot.data ?? [];
+                    _allEvents = events;
+                    _eventTitlesMap = { for (var e in events) e.id: e.title };
                     EventModel? selectedEvent;
                     if (_selectedEventId != null) {
-                      selectedEvent = events.firstWhere(
-                        (e) => e.id == _selectedEventId,
-                        orElse: () => events.first,
-                      );
+                      final matched = events.where((e) => e.id == _selectedEventId).toList();
+                      if (matched.isNotEmpty) {
+                        selectedEvent = matched.first;
+                      }
                     }
 
                     return Column(
@@ -258,12 +286,33 @@ class _EventRegistrationsScreenState extends State<EventRegistrationsScreen> {
                                     ),
                                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                                   ),
-                                  onPressed: () =>
-                                      _exportCsv(context, registrations),
-                                  icon: const Icon(Icons.download_outlined, size: 18),
-                                  label: const Text(
-                                    'Export CSV',
-                                    style: TextStyle(fontWeight: FontWeight.bold),
+                                  onPressed: _isExporting
+                                      ? null
+                                      : () {
+                                          final safeTitle = _selectedEventId != null
+                                              ? (_eventTitlesMap[_selectedEventId] ?? 'Event')
+                                              : 'All Events';
+                                          _exportExcel(
+                                            context,
+                                            registrations,
+                                            _selectedEventId,
+                                            safeTitle,
+                                            _eventTitlesMap,
+                                          );
+                                        },
+                                  icon: _isExporting
+                                      ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: AppColors.sageDark,
+                                          ),
+                                        )
+                                      : const Icon(Icons.table_view_rounded, size: 18),
+                                  label: Text(
+                                    _isExporting ? 'Generating...' : 'Download Excel',
+                                    style: const TextStyle(fontWeight: FontWeight.bold),
                                   ),
                                 ),
                               ],
@@ -515,23 +564,66 @@ class _EventRegistrationsScreenState extends State<EventRegistrationsScreen> {
     );
   }
 
-  Future<void> _exportCsv(
+  Future<void> _exportExcel(
     BuildContext context,
     List<RegistrationModel> registrations,
+    String? eventId,
+    String? eventTitle,
+    Map<String, String> eventsMap,
   ) async {
-    await CsvExportHelper.copyCsvToClipboard(registrations);
+    if (_isExporting) return;
+    setState(() => _isExporting = true);
 
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text(
-          'CSV registration report copied to clipboard! ✓',
-          style: TextStyle(fontWeight: FontWeight.w500),
+    try {
+      final safeEventId = eventId ?? 'all_events';
+      final safeEventTitle = (eventTitle != null && eventTitle.isNotEmpty)
+          ? eventTitle
+          : (eventsMap[eventId] ?? 'All Events');
+      final fileName = ExcelExportHelper.getSafeFileName(
+        eventTitle: safeEventTitle,
+        eventId: safeEventId,
+      );
+
+      final resultMessage = await ExcelExportHelper.downloadRegistrationsExcel(
+        registrations: registrations,
+        eventTitle: safeEventTitle,
+        eventId: safeEventId,
+        eventNamesById: eventsMap,
+      );
+
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle_outline, color: Colors.white),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  resultMessage.isNotEmpty
+                      ? '$resultMessage ✓'
+                      : 'Downloaded $fileName successfully! ✓',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: AppColors.sageDark,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
-        backgroundColor: AppColors.sageDark,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to download Excel: $e'),
+          backgroundColor: AppColors.pinkDark,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
+    }
   }
 }

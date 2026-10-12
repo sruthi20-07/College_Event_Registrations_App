@@ -61,7 +61,7 @@ class _DummyPaymentScreenState extends State<DummyPaymentScreen> {
     // Update local in-memory event seat availability
     updateLocalEventSeats(widget.event.id);
 
-    // Try saving to Firestore if database exists
+    // Save to Firestore with atomic transaction & eligibility enforcement
     String docId = '${widget.event.id}_${widget.registration.studentId}';
     try {
       docId = await _registrationService.registerForEvent(
@@ -69,6 +69,25 @@ class _DummyPaymentScreenState extends State<DummyPaymentScreen> {
       );
     } catch (e) {
       debugPrint('Firestore registration save failed: $e');
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Registration Failed'),
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
     }
 
     final finalReg = completedRegistration.copyWith(id: docId);

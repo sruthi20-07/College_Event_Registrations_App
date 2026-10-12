@@ -36,6 +36,8 @@ class RegistrationModel {
   final String whatsappMessageId;
   final DateTime? whatsappSentAt;
   final String whatsappError;
+  final String whatsappConfirmedByAdminUid;
+  final DateTime? whatsappConfirmedAt;
 
   RegistrationModel({
     required this.id,
@@ -71,6 +73,8 @@ class RegistrationModel {
     this.whatsappMessageId = '',
     this.whatsappSentAt,
     this.whatsappError = '',
+    this.whatsappConfirmedByAdminUid = '',
+    this.whatsappConfirmedAt,
   }) : registeredAt = registeredAt ?? DateTime.now();
 
   String get userId => studentId;
@@ -84,6 +88,11 @@ class RegistrationModel {
   bool get isAttended => attended || attendanceStatus == 'attended';
   bool get isWhatsAppDelivered =>
       whatsappStatus == 'delivered' || whatsappStatus == 'sent' || whatsappStatus == 'accepted';
+  bool get isWhatsAppAdminConfirmed =>
+      whatsappStatus == 'admin_confirmed_sent';
+  bool get isWhatsAppAwaitingConfirmation =>
+      whatsappStatus == 'awaiting_confirmation' ||
+      whatsappStatus == 'ready_to_share';
 
   factory RegistrationModel.fromMap(Map<String, dynamic> map, String docId) {
     String resolvedUserId = (map['userId'] as String? ?? '').trim();
@@ -116,15 +125,28 @@ class RegistrationModel {
       id: docId,
       eventId: map['eventId'] as String? ?? '',
       studentId: resolvedUserId,
-      eventTitle: map['eventTitle'] as String? ?? map['title'] as String? ?? '',
-      studentName:
-          map['studentName'] as String? ?? map['name'] as String? ?? '',
-      studentEmail:
-          map['studentEmail'] as String? ?? map['email'] as String? ?? '',
-      rollNumber: resolvedRoll,
-      phone: resolvedPhone,
-      department:
-          map['department'] as String? ?? map['branch'] as String? ?? '',
+      eventTitle: map['eventTitle'] as String? ??
+          map['title'] as String? ??
+          map['eventName'] as String? ??
+          '',
+      studentName: map['studentName'] as String? ??
+          map['name'] as String? ??
+          map['userName'] as String? ??
+          '',
+      studentEmail: map['studentEmail'] as String? ??
+          map['email'] as String? ??
+          map['userEmail'] as String? ??
+          '',
+      rollNumber: resolvedRoll.isNotEmpty
+          ? resolvedRoll
+          : (map['rollNo'] as String? ?? ''),
+      phone: resolvedPhone.isNotEmpty
+          ? resolvedPhone
+          : (map['contact'] as String? ?? map['contactNumber'] as String? ?? ''),
+      department: map['department'] as String? ??
+          map['branch'] as String? ??
+          map['dept'] as String? ??
+          '',
       year: map['year'] as String? ?? '',
       section: map['section'] as String? ?? 'A',
       eventDate: map['eventDate'] as String? ?? '',
@@ -169,6 +191,13 @@ class RegistrationModel {
           ? DateFormatter.parseDateTime(map['whatsappSentAt'])
           : null,
       whatsappError: map['whatsappError'] as String? ?? '',
+      whatsappConfirmedByAdminUid:
+          map['whatsappConfirmedByAdminUid'] as String? ??
+          map['whatsappConfirmedBy'] as String? ??
+          '',
+      whatsappConfirmedAt: map['whatsappConfirmedAt'] != null
+          ? DateFormatter.parseDateTime(map['whatsappConfirmedAt'])
+          : null,
     );
   }
 
@@ -216,6 +245,8 @@ class RegistrationModel {
       'whatsappMessageId': whatsappMessageId,
       'whatsappSentAt': whatsappSentAt?.toIso8601String(),
       'whatsappError': whatsappError,
+      'whatsappConfirmedByAdminUid': whatsappConfirmedByAdminUid,
+      'whatsappConfirmedAt': whatsappConfirmedAt?.toIso8601String(),
     };
   }
 
@@ -263,6 +294,10 @@ class RegistrationModel {
           ? Timestamp.fromDate(whatsappSentAt!)
           : null,
       'whatsappError': whatsappError,
+      'whatsappConfirmedByAdminUid': whatsappConfirmedByAdminUid,
+      'whatsappConfirmedAt': whatsappConfirmedAt != null
+          ? Timestamp.fromDate(whatsappConfirmedAt!)
+          : null,
     };
   }
 
@@ -300,6 +335,8 @@ class RegistrationModel {
     String? whatsappMessageId,
     DateTime? whatsappSentAt,
     String? whatsappError,
+    String? whatsappConfirmedByAdminUid,
+    DateTime? whatsappConfirmedAt,
   }) {
     return RegistrationModel(
       id: id ?? this.id,
@@ -335,6 +372,9 @@ class RegistrationModel {
       whatsappMessageId: whatsappMessageId ?? this.whatsappMessageId,
       whatsappSentAt: whatsappSentAt ?? this.whatsappSentAt,
       whatsappError: whatsappError ?? this.whatsappError,
+      whatsappConfirmedByAdminUid:
+          whatsappConfirmedByAdminUid ?? this.whatsappConfirmedByAdminUid,
+      whatsappConfirmedAt: whatsappConfirmedAt ?? this.whatsappConfirmedAt,
     );
   }
 }

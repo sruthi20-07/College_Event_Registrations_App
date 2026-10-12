@@ -4,6 +4,7 @@ import '../../models/event_model.dart';
 import '../../services/event_service.dart';
 import '../../utils/constants.dart';
 import 'create_edit_event_screen.dart';
+import 'event_live_attendance_qr_screen.dart';
 import 'event_participants_screen.dart';
 
 class ManageEventsScreen extends StatelessWidget {
@@ -262,34 +263,49 @@ class ManageEventsScreen extends StatelessWidget {
 
                 const SizedBox(height: 10),
 
-                // PARTICIPANT SUMMARY ROW (TAP HINT)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
+                // SINGLE PARTICIPANT ENTRY ROW
+                InkWell(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            EventParticipantsScreen(event: event),
+                      ),
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Icon(
-                          Icons.people_alt_outlined,
-                          size: 15,
-                          color: AppColors.sageDark,
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.people_alt_outlined,
+                              size: 15,
+                              color: AppColors.sageDark,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              'View Participants (${event.registeredCount})',
+                              style: TextStyle(
+                                color: AppColors.sageDark,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 5),
-                        Text(
-                          'View Participants (${event.registeredCount})',
-                          style: TextStyle(
-                            color: AppColors.sageDark,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
+                        Icon(
+                          Icons.chevron_right,
+                          size: 18,
+                          color: AppColors.sageDark,
                         ),
                       ],
                     ),
-                    Icon(
-                      Icons.chevron_right,
-                      size: 18,
-                      color: AppColors.sageDark,
-                    ),
-                  ],
+                  ),
                 ),
 
                 const SizedBox(height: 12),
@@ -302,26 +318,26 @@ class ManageEventsScreen extends StatelessWidget {
                   spacing: 4,
                   runSpacing: 4,
                   children: [
-                    // PARTICIPANTS BUTTON
+                    // LIVE ATTENDANCE QR BUTTON
                     TextButton.icon(
                       onPressed: () {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (_) =>
-                                EventParticipantsScreen(event: event),
+                                EventLiveAttendanceQrScreen(event: event),
                           ),
                         );
                       },
-                      icon: Icon(
-                        Icons.people_outline,
+                      icon: const Icon(
+                        Icons.qr_code_2_rounded,
                         size: 18,
-                        color: AppColors.sageDark,
+                        color: AppColors.lavenderDark,
                       ),
-                      label: Text(
-                        'Participants',
+                      label: const Text(
+                        'Live QR',
                         style: TextStyle(
-                          color: AppColors.sageDark,
+                          color: AppColors.lavenderDark,
                           fontWeight: FontWeight.bold,
                         ),
                       ),

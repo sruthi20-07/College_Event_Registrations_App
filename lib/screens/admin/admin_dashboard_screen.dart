@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/event_model.dart';
@@ -7,12 +6,13 @@ import '../../services/auth_service.dart';
 import '../../services/event_service.dart';
 import '../../services/registration_service.dart';
 import '../../utils/constants.dart';
-import '../auth/login_screen.dart';
+import '../auth/auth_wrapper.dart';
 import 'create_edit_event_screen.dart';
 import 'event_registrations_screen.dart';
 import 'manage_events_screen.dart';
-import 'qr_scanner_screen.dart';
 import 'admin_feedback_screen.dart';
+import 'admin_gamification_screen.dart';
+import 'admin_live_qr_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -29,7 +29,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Future<void> _handleAdminLogout(BuildContext context) async {
     try {
-      await FirebaseAuth.instance.signOut();
       await _authService.signOut();
     } catch (e) {
       debugPrint('Admin logout error: $e');
@@ -38,7 +37,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     if (!context.mounted) return;
 
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      MaterialPageRoute(builder: (_) => const AuthWrapper()),
       (route) => false,
     );
   }
@@ -178,17 +177,53 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Admin Dashboard'),
+        title: const Text(
+          'Admin Dashboard',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: AppColors.textMain,
+          ),
+        ),
         backgroundColor: AppColors.background,
         elevation: 0,
         actions: [
+          // TOP-BAR EVENT QR CODES & ATTENDANCE ACTION ICON
+          IconButton(
+            tooltip: 'Event QR Codes & Attendance',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const AdminLiveQrScreen(),
+                ),
+              );
+            },
+            icon: Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: AppColors.mintLight,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: AppColors.mintDark.withValues(alpha: 0.3),
+                  width: 1.0,
+                ),
+              ),
+              child: const Icon(
+                Icons.qr_code_2_rounded,
+                size: 19,
+                color: AppColors.mintDark,
+              ),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.logout, color: AppColors.textMain),
             tooltip: 'Logout',
             onPressed: () => _handleAdminLogout(context),
           ),
+          const SizedBox(width: 4),
         ],
       ),
+      floatingActionButton: _buildFeedbackFloatingButton(context),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
         child: Center(
@@ -292,12 +327,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             .length;
 
                         return GridView.count(
-                          crossAxisCount: MediaQuery.of(context).size.width > 600
+                          crossAxisCount: MediaQuery.of(context).size.width > 700
                               ? 4
                               : 2,
                           crossAxisSpacing: 12,
                           mainAxisSpacing: 12,
-                          childAspectRatio: 1.35,
+                          childAspectRatio: MediaQuery.of(context).size.width > 700
+                              ? 1.15
+                              : 1.25,
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
                           children: [
@@ -426,43 +463,42 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   ],
                 ),
 
-                const SizedBox(height: 12),
-
-                // COMPACT FULL-WIDTH ACTION CARD: SCAN QR
-                _buildCompactActionCard(
-                  icon: Icons.qr_code_scanner,
-                  iconBg: AppColors.mintLight,
-                  iconColor: AppColors.mintDark,
-                  title: 'Scan QR / Verify Attendance',
-                  subtitle: 'Quickly scan student pass and check in',
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const QrScannerScreen()),
-                    );
-                  },
-                ),
-
                 const SizedBox(height: 10),
 
-                // COMPACT FULL-WIDTH ACTION CARD: STUDENT FEEDBACK
-                _buildCompactActionCard(
-                  icon: Icons.rate_review_outlined,
-                  iconBg: AppColors.lavenderLight,
-                  iconColor: AppColors.lavenderDark,
-                  title: 'Student App Feedback & Reviews',
-                  subtitle: 'Inspect ratings, feedback and student issues',
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const AdminFeedbackScreen(),
+                // CAMPUS REWARDS & GAMIFICATION MANAGEMENT ACTION
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: AppColors.cardWhite,
+                      foregroundColor: AppColors.textMain,
+                      side: const BorderSide(color: AppColors.border),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    );
-                  },
+                    ),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AdminGamificationScreen(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(
+                      Icons.military_tech_outlined,
+                      size: 20,
+                      color: AppColors.coral,
+                    ),
+                    label: const Text(
+                      'Campus Rewards & Gamification',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                  ),
                 ),
 
-                const SizedBox(height: 24),
+                const SizedBox(height: 70),
               ],
             ),
           ),
@@ -471,78 +507,31 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  Widget _buildCompactActionCard({
-    required IconData icon,
-    required Color iconBg,
-    required Color iconColor,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.cardWhite,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(14),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(14),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: iconBg,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(icon, color: iconColor, size: 20),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textMain,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Icon(
-                  Icons.chevron_right,
-                  color: AppColors.textSecondary,
-                  size: 20,
-                ),
-              ],
-            ),
-          ),
+  Widget _buildFeedbackFloatingButton(BuildContext context) {
+    return FloatingActionButton.small(
+      heroTag: 'admin_feedback_fab',
+      elevation: 2.5,
+      highlightElevation: 4.0,
+      backgroundColor: AppColors.lavenderLight,
+      shape: CircleBorder(
+        side: BorderSide(
+          color: AppColors.lavender.withValues(alpha: 0.4),
+          width: 1.2,
         ),
+      ),
+      tooltip: 'Feedback & Reviews',
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const AdminFeedbackScreen(),
+          ),
+        );
+      },
+      child: const Icon(
+        Icons.rate_review_rounded,
+        size: 20,
+        color: AppColors.lavenderDark,
       ),
     );
   }
@@ -555,7 +544,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     Color iconColor,
   ) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: AppColors.cardWhite,
         borderRadius: BorderRadius.circular(16),
@@ -573,26 +562,29 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           CircleAvatar(
-            radius: 16,
+            radius: 14,
             backgroundColor: bg,
-            child: Icon(icon, color: iconColor, size: 18),
+            child: Icon(icon, color: iconColor, size: 16),
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 count,
                 style: const TextStyle(
-                  fontSize: 20,
+                  fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: AppColors.textMain,
                 ),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 1),
               Text(
                 title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 12,
+                  fontSize: 11,
                   fontWeight: FontWeight.w500,
                   color: AppColors.textSecondary,
                 ),

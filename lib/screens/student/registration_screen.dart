@@ -137,6 +137,21 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         return;
       }
 
+      // Pre-registration eligibility check
+      if (!widget.event.isAllYears && !AcademicYears.matches(widget.event.allowedYears, year)) {
+        _showErrorDialog(
+          'Ineligible: This event is open only to: ${widget.event.allowedYears.join(', ')}.\nYour selected academic year is "$year".',
+        );
+        return;
+      }
+
+      if (!widget.event.isAllDepartments && !AcademicDepartments.matches(widget.event.allowedDepartments, department)) {
+        _showErrorDialog(
+          'Ineligible: This event is open only to: ${widget.event.allowedDepartments.join(', ')}.\nYour selected department is "$department".',
+        );
+        return;
+      }
+
       final String rawWhatsApp = whatsappController.text.trim().isNotEmpty
           ? whatsappController.text.trim()
           : phoneController.text.trim();

@@ -29,13 +29,29 @@ class UserModel {
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
-  bool get isAdmin => role == UserRoles.admin;
-  bool get isFaculty => role == UserRoles.faculty;
-  bool get isCoordinator => role == UserRoles.coordinator;
-  bool get isStudent => role == UserRoles.student;
-  bool get isStaff => UserRoles.isAdminOrStaff(role);
+  bool get isAdmin {
+    final r = role.trim().toLowerCase();
+    final e = email.trim().toLowerCase();
+    return r == UserRoles.admin ||
+        e == 'admin@collegeevent.com' ||
+        e == 'admin@college.edu';
+  }
+  bool get isFaculty => role.trim().toLowerCase() == UserRoles.faculty;
+  bool get isCoordinator => role.trim().toLowerCase() == UserRoles.coordinator;
+  bool get isStudent => !isStaff;
+  bool get isStaff => UserRoles.isAdminOrStaff(role) || isAdmin;
 
   factory UserModel.fromMap(Map<String, dynamic> map, String docId) {
+    final String cleanEmail = (map['email'] as String? ?? '').trim().toLowerCase();
+    final String rawRole = (map['role'] as String? ?? '').trim().toLowerCase();
+    final bool isDocAdmin = map['isAdmin'] == true ||
+        rawRole == 'admin' ||
+        cleanEmail == 'admin@collegeevent.com' ||
+        cleanEmail == 'admin@college.edu';
+    final String resolvedRole = rawRole.isNotEmpty
+        ? rawRole
+        : (isDocAdmin ? UserRoles.admin : UserRoles.student);
+
     return UserModel(
       uid: docId,
       name: map['name'] as String? ?? '',
@@ -43,7 +59,7 @@ class UserModel {
       rollNumber: map['rollNumber'] as String? ?? '',
       department: map['department'] as String? ?? '',
       year: map['year'] as String? ?? '',
-      role: map['role'] as String? ?? UserRoles.student,
+      role: resolvedRole,
       whatsappNumber: map['whatsappNumber'] as String? ?? map['phone'] as String? ?? '',
       whatsappConsent: map['whatsappConsent'] as bool? ?? false,
       whatsappConsentAt: map['whatsappConsentAt'] != null
