@@ -8,12 +8,7 @@ class RewardCategories {
   static const String collegePerk = 'college_perk';
   static const String custom = 'custom';
 
-  static const List<String> all = [
-    freeEvent,
-    certificate,
-    collegePerk,
-    custom,
-  ];
+  static const List<String> all = [freeEvent, certificate, collegePerk, custom];
 
   static String getLabel(String category) {
     switch (category) {
@@ -95,10 +90,10 @@ class RewardModel {
     this.termsAndConditions = '',
     DateTime? createdAt,
     DateTime? updatedAt,
-  })  : eligibilityYears = eligibilityYears ?? const [],
-        eligibilityDepartments = eligibilityDepartments ?? const [],
-        createdAt = createdAt ?? DateTime.now(),
-        updatedAt = updatedAt ?? DateTime.now();
+  }) : eligibilityYears = eligibilityYears ?? const [],
+       eligibilityDepartments = eligibilityDepartments ?? const [],
+       createdAt = createdAt ?? DateTime.now(),
+       updatedAt = updatedAt ?? DateTime.now();
 
   bool get isUnlimitedStock => availableStock < 0;
   bool get isOutOfStock => !isUnlimitedStock && availableStock <= 0;
@@ -109,6 +104,19 @@ class RewardModel {
   }
 
   bool get isCurrentlyAvailable => isEnabled && !isExpired && !isOutOfStock;
+
+  bool get isDemoOrSample {
+    final lowerTitle = title.toLowerCase();
+    final lowerDesc = description.toLowerCase();
+    final lowerTerms = termsAndConditions.toLowerCase();
+    return id.startsWith('cert_') ||
+        lowerTitle.contains('sample') ||
+        lowerTitle.contains('demo') ||
+        lowerDesc.contains('sample') ||
+        lowerDesc.contains('demonstration') ||
+        lowerTerms.contains('sample') ||
+        lowerTerms.contains('demonstration');
+  }
 
   factory RewardModel.fromMap(Map<String, dynamic> map, String docId) {
     final List<String> years = [];
@@ -324,8 +332,9 @@ class RewardRedemptionModel {
       'verifiedAttendanceMet': verifiedAttendanceMet,
       'idempotencyKey': idempotencyKey,
       'redeemedAt': Timestamp.fromDate(redeemedAt),
-      'fulfilledAt':
-          fulfilledAt != null ? Timestamp.fromDate(fulfilledAt!) : null,
+      'fulfilledAt': fulfilledAt != null
+          ? Timestamp.fromDate(fulfilledAt!)
+          : null,
       'fulfilledByAdminUid': fulfilledByAdminUid,
     };
   }
@@ -336,7 +345,8 @@ class CoinTransactionModel {
   final String id;
   final String studentId;
   final int amount; // positive = credit, negative = debit
-  final String type; // 'attendance_verified', 'reward_redemption', 'redemption_refund', 'admin_adjustment', 'streak_milestone', 'referral_bonus'
+  final String
+  type; // 'attendance_verified', 'reward_redemption', 'redemption_refund', 'admin_adjustment', 'streak_milestone', 'referral_bonus'
   final String title;
   final String description;
   final String refId; // eventId, rewardId, redemptionId
@@ -358,10 +368,7 @@ class CoinTransactionModel {
   bool get isCredit => amount > 0;
   bool get isDebit => amount < 0;
 
-  factory CoinTransactionModel.fromMap(
-    Map<String, dynamic> map,
-    String docId,
-  ) {
+  factory CoinTransactionModel.fromMap(Map<String, dynamic> map, String docId) {
     return CoinTransactionModel(
       id: docId,
       studentId: map['studentId'] as String? ?? '',
@@ -400,7 +407,8 @@ class CoinTransactionModel {
 class GamificationRuleModel {
   final String id;
   final String name;
-  final String activityType; // 'attendance', 'streak_milestone', 'referral', 'profile'
+  final String
+  activityType; // 'attendance', 'streak_milestone', 'referral', 'profile'
   final int coinAmount;
   final bool isEnabled;
   final String description;
@@ -451,9 +459,10 @@ class ReferralRecordModel {
   final String referrerCode;
   final String referredUid;
   final String referredName;
-  final String status; // 'pending', 'qualified', 'rewarded'
+  final String status; // 'pending', 'qualified', 'completed'
   final String qualifyingAction;
   final int coinsAwarded;
+  final int friendCoinsAwarded;
   final DateTime createdAt;
   final DateTime? qualifiedAt;
 
@@ -466,14 +475,15 @@ class ReferralRecordModel {
     this.status = 'pending',
     this.qualifyingAction = 'first_event_attended',
     this.coinsAwarded = 0,
+    this.friendCoinsAwarded = 50,
     DateTime? createdAt,
     this.qualifiedAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
-  factory ReferralRecordModel.fromMap(
-    Map<String, dynamic> map,
-    String docId,
-  ) {
+  bool get isCompleted => status == 'completed' || status == 'qualified';
+  String get displayStatus => isCompleted ? 'Completed' : 'Pending';
+
+  factory ReferralRecordModel.fromMap(Map<String, dynamic> map, String docId) {
     return ReferralRecordModel(
       id: docId,
       referrerUid: map['referrerUid'] as String? ?? '',
@@ -481,8 +491,10 @@ class ReferralRecordModel {
       referredUid: map['referredUid'] as String? ?? '',
       referredName: map['referredName'] as String? ?? '',
       status: map['status'] as String? ?? 'pending',
-      qualifyingAction: map['qualifyingAction'] as String? ?? 'first_event_attended',
+      qualifyingAction:
+          map['qualifyingAction'] as String? ?? 'first_event_attended',
       coinsAwarded: (map['coinsAwarded'] ?? 0) as int,
+      friendCoinsAwarded: (map['friendCoinsAwarded'] ?? 50) as int,
       createdAt: DateFormatter.parseDateTime(map['createdAt']),
       qualifiedAt: map['qualifiedAt'] != null
           ? DateFormatter.parseDateTime(map['qualifiedAt'])
@@ -506,9 +518,11 @@ class ReferralRecordModel {
       'status': status,
       'qualifyingAction': qualifyingAction,
       'coinsAwarded': coinsAwarded,
+      'friendCoinsAwarded': friendCoinsAwarded,
       'createdAt': Timestamp.fromDate(createdAt),
-      'qualifiedAt':
-          qualifiedAt != null ? Timestamp.fromDate(qualifiedAt!) : null,
+      'qualifiedAt': qualifiedAt != null
+          ? Timestamp.fromDate(qualifiedAt!)
+          : null,
     };
   }
 
@@ -521,6 +535,7 @@ class ReferralRecordModel {
     String? status,
     String? qualifyingAction,
     int? coinsAwarded,
+    int? friendCoinsAwarded,
     DateTime? createdAt,
     DateTime? qualifiedAt,
   }) {
@@ -533,8 +548,35 @@ class ReferralRecordModel {
       status: status ?? this.status,
       qualifyingAction: qualifyingAction ?? this.qualifyingAction,
       coinsAwarded: coinsAwarded ?? this.coinsAwarded,
+      friendCoinsAwarded: friendCoinsAwarded ?? this.friendCoinsAwarded,
       createdAt: createdAt ?? this.createdAt,
       qualifiedAt: qualifiedAt ?? this.qualifiedAt,
     );
   }
+}
+
+enum ReferralValidationStatus {
+  valid,
+  notFound,
+  selfReferral,
+  alreadyReferred,
+  invalidFormat,
+}
+
+class ReferralValidationResult {
+  final ReferralValidationStatus status;
+  final String message;
+  final String? referrerUid;
+  final String? referrerName;
+  final String? normalizedCode;
+
+  const ReferralValidationResult({
+    required this.status,
+    required this.message,
+    this.referrerUid,
+    this.referrerName,
+    this.normalizedCode,
+  });
+
+  bool get isValid => status == ReferralValidationStatus.valid;
 }

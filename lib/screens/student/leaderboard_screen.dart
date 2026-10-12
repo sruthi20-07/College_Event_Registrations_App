@@ -1,11 +1,118 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../models/gamification_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/gamification_service.dart';
 import '../../utils/constants.dart';
 
-class LeaderboardScreen extends StatelessWidget {
+class LeaderboardScreen extends StatefulWidget {
   const LeaderboardScreen({super.key});
+
+  @override
+  State<LeaderboardScreen> createState() => _LeaderboardScreenState();
+}
+
+class _LeaderboardScreenState extends State<LeaderboardScreen> {
+  final AuthService _authService = AuthService();
+  final GamificationService _gamificationService = GamificationService();
+
+  // In-memory cache across screen visits to prevent redundant Firestore reads
+  static final Map<String, String> _nameCache = {};
+  static final Set<String> _pendingUids = {};
+
+  @override
+  void initState() {
+    super.initState();
+    final uid = _authService.currentUid;
+    if (uid != null && uid.isNotEmpty) {
+      final user = _authService.currentUser;
+      if (user?.displayName != null && user!.displayName!.trim().isNotEmpty) {
+        _nameCache[uid] = user.displayName!.trim();
+      }
+    }
+  }
+
+  void _loadMissingNames(List<String> uids) {
+    final toFetch = uids
+        .where(
+          (id) =>
+              id.trim().isNotEmpty &&
+              !_nameCache.containsKey(id) &&
+              !_pendingUids.contains(id),
+        )
+        .toSet()
+        .toList();
+
+    if (toFetch.isEmpty) return;
+
+    _pendingUids.addAll(toFetch);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      bool hasUpdates = false;
+      // Fetch in chunks of 20 (well within Firestore's 30 whereIn limit)
+      for (var i = 0; i < toFetch.length; i += 20) {
+        final chunk = toFetch.sublist(
+          i,
+          (i + 20 > toFetch.length) ? toFetch.length : i + 20,
+        );
+        try {
+          final querySnapshot = await FirebaseFirestore.instance
+              .collection('users')
+              .where(FieldPath.documentId, whereIn: chunk)
+              .get(const GetOptions(source: Source.serverAndCache));
+
+          for (final doc in querySnapshot.docs) {
+            final data = doc.data();
+            final rawName =
+                data['name'] ?? data['displayName'] ?? data['fullName'];
+            if (rawName is String && rawName.trim().isNotEmpty) {
+              _nameCache[doc.id] = rawName.trim();
+            } else {
+              _nameCache[doc.id] = 'Student';
+            }
+            hasUpdates = true;
+          }
+
+          // For any documents in chunk not returned by Firestore (e.g. deleted profile)
+          for (final id in chunk) {
+            if (!_nameCache.containsKey(id)) {
+              _nameCache[id] = 'Student';
+              hasUpdates = true;
+            }
+          }
+        } catch (e) {
+          debugPrint('Graceful fallback for leaderboard user profiles: $e');
+          for (final id in chunk) {
+            if (!_nameCache.containsKey(id)) {
+              _nameCache[id] = 'Student';
+              hasUpdates = true;
+            }
+          }
+        } finally {
+          _pendingUids.removeAll(chunk);
+        }
+      }
+      if (hasUpdates && mounted) {
+        setState(() {});
+      }
+    });
+  }
+
+  String _getDisplayName(String studentId, bool isCurrentUser) {
+    final cached = _nameCache[studentId];
+    if (cached != null &&
+        cached.trim().isNotEmpty &&
+        cached.trim() != 'Student') {
+      return cached.trim();
+    }
+    if (isCurrentUser) {
+      final currentAuthName = _authService.currentUser?.displayName;
+      if (currentAuthName != null && currentAuthName.trim().isNotEmpty) {
+        return currentAuthName.trim();
+      }
+    }
+    return 'Student';
+  }
 
   String _getTierName(int lifetimeCoins) {
     if (lifetimeCoins >= 500) return 'Diamond Legend';
@@ -30,9 +137,7 @@ class LeaderboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final authService = AuthService();
-    final gamificationService = GamificationService();
-    final currentUid = authService.currentUid ?? '';
+    final currentUid = _authService.currentUid ?? '';
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -49,7 +154,7 @@ class LeaderboardScreen extends StatelessWidget {
         centerTitle: true,
       ),
       body: StreamBuilder<List<GamificationModel>>(
-        stream: gamificationService.streamLeaderboard(limit: 50),
+        stream: _gamificationService.streamLeaderboard(limit: 50),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting &&
               !snapshot.hasData) {
@@ -59,6 +164,11 @@ class LeaderboardScreen extends StatelessWidget {
           }
 
           final leaderboard = snapshot.data ?? [];
+
+          if (leaderboard.isNotEmpty) {
+            final uids = leaderboard.map((e) => e.studentId).toList();
+            _loadMissingNames(uids);
+          }
 
           if (leaderboard.isEmpty) {
             return Center(
@@ -132,7 +242,11 @@ class LeaderboardScreen extends StatelessWidget {
                   ),
                   child: const Row(
                     children: [
-                      Icon(Icons.info_outline, size: 20, color: AppColors.lavenderDark),
+                      Icon(
+                        Icons.info_outline,
+                        size: 20,
+                        color: AppColors.lavenderDark,
+                      ),
                       SizedBox(width: 10),
                       Expanded(
                         child: Text(
@@ -153,9 +267,15 @@ class LeaderboardScreen extends StatelessWidget {
               // CURRENT USER HIGHLIGHT BAR (IF FOUND)
               if (currentStudentData != null)
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 4,
+                  ),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
                         colors: [Color(0xFFFFEDE6), Color(0xFFEDE9FE)],
@@ -246,16 +366,25 @@ class LeaderboardScreen extends StatelessWidget {
                     final rank = index + 1;
                     final isCurrentUser = item.studentId == currentUid;
                     final rankColor = _getRankColor(rank);
+                    final displayName = _getDisplayName(
+                      item.studentId,
+                      isCurrentUser,
+                    );
 
                     return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
                       decoration: BoxDecoration(
                         color: isCurrentUser
                             ? AppColors.coralLight.withValues(alpha: 0.6)
                             : AppColors.cardWhite,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: isCurrentUser ? AppColors.coral : AppColors.border,
+                          color: isCurrentUser
+                              ? AppColors.coral
+                              : AppColors.border,
                         ),
                       ),
                       child: Row(
@@ -280,7 +409,9 @@ class LeaderboardScreen extends StatelessWidget {
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 13,
-                                  color: rank <= 3 ? rankColor : AppColors.textSecondary,
+                                  color: rank <= 3
+                                      ? rankColor
+                                      : AppColors.textSecondary,
                                 ),
                               ),
                             ),
@@ -294,16 +425,18 @@ class LeaderboardScreen extends StatelessWidget {
                               children: [
                                 Row(
                                   children: [
-                                    Text(
-                                      isCurrentUser
-                                          ? 'You (${item.studentId.substring(0, 4).toUpperCase()})'
-                                          : 'Student ${item.studentId.substring(0, 4).toUpperCase()}',
-                                      style: TextStyle(
-                                        fontWeight: isCurrentUser
-                                            ? FontWeight.bold
-                                            : FontWeight.w600,
-                                        fontSize: 14,
-                                        color: AppColors.textMain,
+                                    Flexible(
+                                      child: Text(
+                                        displayName,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontWeight: isCurrentUser
+                                              ? FontWeight.bold
+                                              : FontWeight.w600,
+                                          fontSize: 14,
+                                          color: AppColors.textMain,
+                                        ),
                                       ),
                                     ),
                                     if (isCurrentUser) ...[
@@ -315,7 +448,9 @@ class LeaderboardScreen extends StatelessWidget {
                                         ),
                                         decoration: BoxDecoration(
                                           color: AppColors.coral,
-                                          borderRadius: BorderRadius.circular(8),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
                                         ),
                                         child: const Text(
                                           'YOU',

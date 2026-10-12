@@ -11,6 +11,7 @@ import '../../services/event_service.dart';
 import '../../services/gamification_service.dart';
 import '../../utils/constants.dart';
 import '../../utils/date_formatter.dart';
+import '../../widgets/streak_symbol_selector_dialog.dart';
 import 'leaderboard_screen.dart';
 
 class GamificationDashboardScreen extends StatefulWidget {
@@ -45,6 +46,38 @@ class _GamificationDashboardScreenState
     super.initState();
     _tabController = TabController(length: 5, vsync: this);
     _loadUserProfile();
+    _initializeGamificationAndStreak();
+  }
+
+  Future<void> _initializeGamificationAndStreak() async {
+    if (_activeStudentId.isEmpty) return;
+    try {
+      await _gamificationService.ensureStudentGamificationProfile(
+        _activeStudentId,
+      );
+      await _gamificationService.seedSampleCatalogueIfEmpty();
+      final streakRes = await _gamificationService.recordDailyAppOpen(
+        _activeStudentId,
+      );
+      if (streakRes.awarded && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.stars_rounded, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(child: Text(streakRes.message)),
+              ],
+            ),
+            backgroundColor: AppColors.mintDark,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error initializing gamification/daily open: $e');
+    }
   }
 
   @override
@@ -90,6 +123,14 @@ class _GamificationDashboardScreenState
         return Icons.emoji_events_outlined;
       case 'consistency_star':
         return Icons.local_fire_department_outlined;
+      case 'daily_streak_3':
+        return Icons.local_fire_department_outlined;
+      case 'daily_streak_7':
+        return Icons.bolt_outlined;
+      case 'daily_streak_14':
+        return Icons.auto_awesome_outlined;
+      case 'daily_streak_30':
+        return Icons.military_tech_outlined;
       case 'elite_participant':
         return Icons.diamond_outlined;
       default:
@@ -168,7 +209,9 @@ class _GamificationDashboardScreenState
                 width: 76,
                 height: 76,
                 decoration: BoxDecoration(
-                  color: isUnlocked ? AppColors.coralLight : AppColors.background,
+                  color: isUnlocked
+                      ? AppColors.coralLight
+                      : AppColors.background,
                   shape: BoxShape.circle,
                   border: Border.all(
                     color: isUnlocked ? AppColors.coral : AppColors.border,
@@ -179,7 +222,9 @@ class _GamificationDashboardScreenState
                   child: Icon(
                     _getBadgeIcon(badge.id),
                     size: 36,
-                    color: isUnlocked ? AppColors.coralDark : AppColors.textSecondary,
+                    color: isUnlocked
+                        ? AppColors.coralDark
+                        : AppColors.textSecondary,
                   ),
                 ),
               ),
@@ -194,9 +239,14 @@ class _GamificationDashboardScreenState
               ),
               const SizedBox(height: 6),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
-                  color: isUnlocked ? AppColors.mintLight : AppColors.lavenderLight,
+                  color: isUnlocked
+                      ? AppColors.mintLight
+                      : AppColors.lavenderLight,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: isUnlocked ? AppColors.mint : AppColors.lavender,
@@ -209,7 +259,9 @@ class _GamificationDashboardScreenState
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: isUnlocked ? AppColors.mintDark : AppColors.lavenderDark,
+                    color: isUnlocked
+                        ? AppColors.mintDark
+                        : AppColors.lavenderDark,
                   ),
                 ),
               ),
@@ -239,7 +291,10 @@ class _GamificationDashboardScreenState
                       children: [
                         const Text(
                           'Requirement',
-                          style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 13,
+                          ),
                         ),
                         Text(
                           badge.isStreakBadge
@@ -260,7 +315,10 @@ class _GamificationDashboardScreenState
                         children: [
                           const Text(
                             'Unlocked Date',
-                            style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 13,
+                            ),
                           ),
                           Text(
                             DateFormatter.formatFullDateTime(unlockedAt),
@@ -356,7 +414,10 @@ class _GamificationDashboardScreenState
         centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.leaderboard_outlined, color: AppColors.textMain),
+            icon: const Icon(
+              Icons.leaderboard_outlined,
+              color: AppColors.textMain,
+            ),
             tooltip: 'Campus Leaderboard',
             onPressed: () {
               Navigator.push(
@@ -382,7 +443,8 @@ class _GamificationDashboardScreenState
             );
           }
 
-          final gamification = snapshot.data ??
+          final gamification =
+              snapshot.data ??
               GamificationModel(
                 studentId: _activeStudentId,
                 coins: 0,
@@ -401,7 +463,11 @@ class _GamificationDashboardScreenState
               // 1. TOP HERO CARD
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
-                child: _buildHeroBalanceCard(spendableCoins, lifetimeCoins, gamification),
+                child: _buildHeroBalanceCard(
+                  spendableCoins,
+                  lifetimeCoins,
+                  gamification,
+                ),
               ),
 
               // 2. TAB BAR
@@ -415,11 +481,26 @@ class _GamificationDashboardScreenState
                   indicatorWeight: 3,
                   isScrollable: true,
                   tabs: const [
-                    Tab(icon: Icon(Icons.card_giftcard, size: 20), text: 'Rewards'),
-                    Tab(icon: Icon(Icons.receipt_long_outlined, size: 20), text: 'My Redemptions'),
-                    Tab(icon: Icon(Icons.military_tech_outlined, size: 20), text: 'Badges & Streaks'),
-                    Tab(icon: Icon(Icons.history, size: 20), text: 'Coin Ledger'),
-                    Tab(icon: Icon(Icons.group_outlined, size: 20), text: 'Referrals'),
+                    Tab(
+                      icon: Icon(Icons.card_giftcard, size: 20),
+                      text: 'Rewards',
+                    ),
+                    Tab(
+                      icon: Icon(Icons.receipt_long_outlined, size: 20),
+                      text: 'My Redemptions',
+                    ),
+                    Tab(
+                      icon: Icon(Icons.military_tech_outlined, size: 20),
+                      text: 'Badges & Streaks',
+                    ),
+                    Tab(
+                      icon: Icon(Icons.history, size: 20),
+                      text: 'Coin Ledger',
+                    ),
+                    Tab(
+                      icon: Icon(Icons.group_outlined, size: 20),
+                      text: 'Referrals',
+                    ),
                   ],
                 ),
               ),
@@ -473,7 +554,10 @@ class _GamificationDashboardScreenState
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.cardWhite.withValues(alpha: 0.9),
                   borderRadius: BorderRadius.circular(12),
@@ -482,7 +566,11 @@ class _GamificationDashboardScreenState
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.workspace_premium, size: 14, color: AppColors.coral),
+                    const Icon(
+                      Icons.workspace_premium,
+                      size: 14,
+                      color: AppColors.coral,
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       rankTitle,
@@ -499,20 +587,31 @@ class _GamificationDashboardScreenState
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const LeaderboardScreen()),
+                    MaterialPageRoute(
+                      builder: (_) => const LeaderboardScreen(),
+                    ),
                   );
                 },
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.lavenderLight,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.lavender.withValues(alpha: 0.4)),
+                    border: Border.all(
+                      color: AppColors.lavender.withValues(alpha: 0.4),
+                    ),
                   ),
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.leaderboard, size: 13, color: AppColors.lavenderDark),
+                      Icon(
+                        Icons.leaderboard,
+                        size: 13,
+                        color: AppColors.lavenderDark,
+                      ),
                       SizedBox(width: 4),
                       Text(
                         'Leaderboard',
@@ -576,8 +675,39 @@ class _GamificationDashboardScreenState
             ],
           ),
           const SizedBox(height: 8),
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
             children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppColors.lavenderLight,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: AppColors.lavender.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.bolt,
+                      size: 13,
+                      color: AppColors.lavenderDark,
+                    ),
+                    const SizedBox(width: 3),
+                    Text(
+                      '${gamification.dailyStreak} Day App Streak',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.lavenderDark,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
@@ -585,11 +715,16 @@ class _GamificationDashboardScreenState
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.local_fire_department, size: 12, color: AppColors.coral),
+                    const Icon(
+                      Icons.local_fire_department,
+                      size: 12,
+                      color: AppColors.coral,
+                    ),
                     const SizedBox(width: 3),
                     Text(
-                      '${gamification.currentStreak} Day Streak',
+                      '${gamification.currentStreak} Day Attendance',
                       style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
@@ -599,7 +734,6 @@ class _GamificationDashboardScreenState
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
@@ -634,34 +768,39 @@ class _GamificationDashboardScreenState
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
-            children: [
-              'All',
-              RewardCategories.freeEvent,
-              RewardCategories.certificate,
-              RewardCategories.collegePerk,
-            ].map((cat) {
-              final isSelected = _selectedCategoryFilter == cat;
-              final label = cat == 'All' ? 'All Rewards' : RewardCategories.getLabel(cat);
-              return Padding(
-                padding: const EdgeInsets.only(right: 6),
-                child: ChoiceChip(
-                  label: Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: isSelected ? Colors.white : AppColors.textSecondary,
+            children:
+                [
+                  'All',
+                  RewardCategories.freeEvent,
+                  RewardCategories.certificate,
+                  RewardCategories.collegePerk,
+                ].map((cat) {
+                  final isSelected = _selectedCategoryFilter == cat;
+                  final label = cat == 'All'
+                      ? 'All Rewards'
+                      : RewardCategories.getLabel(cat);
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: ChoiceChip(
+                      label: Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: isSelected
+                              ? Colors.white
+                              : AppColors.textSecondary,
+                        ),
+                      ),
+                      selected: isSelected,
+                      selectedColor: AppColors.coral,
+                      backgroundColor: AppColors.cardWhite,
+                      onSelected: (val) {
+                        if (val) setState(() => _selectedCategoryFilter = cat);
+                      },
                     ),
-                  ),
-                  selected: isSelected,
-                  selectedColor: AppColors.coral,
-                  backgroundColor: AppColors.cardWhite,
-                  onSelected: (val) {
-                    if (val) setState(() => _selectedCategoryFilter = cat);
-                  },
-                ),
-              );
-            }).toList(),
+                  );
+                }).toList(),
           ),
         ),
 
@@ -680,7 +819,9 @@ class _GamificationDashboardScreenState
               final allRewards = snapshot.data ?? [];
               final filtered = _selectedCategoryFilter == 'All'
                   ? allRewards
-                  : allRewards.where((r) => r.category == _selectedCategoryFilter).toList();
+                  : allRewards
+                        .where((r) => r.category == _selectedCategoryFilter)
+                        .toList();
 
               if (filtered.isEmpty) {
                 return Center(
@@ -689,11 +830,18 @@ class _GamificationDashboardScreenState
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.card_giftcard, size: 44, color: AppColors.textSecondary),
+                        const Icon(
+                          Icons.card_giftcard,
+                          size: 44,
+                          color: AppColors.textSecondary,
+                        ),
                         const SizedBox(height: 12),
                         const Text(
                           'No Rewards Currently Available',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
                         ),
                         const SizedBox(height: 6),
                         Text(
@@ -701,7 +849,10 @@ class _GamificationDashboardScreenState
                               ? 'The campus administration has not published rewards yet.'
                               : 'No rewards in this category yet. Check back soon!',
                           textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textSecondary,
+                          ),
                         ),
                       ],
                     ),
@@ -709,210 +860,345 @@ class _GamificationDashboardScreenState
                 );
               }
 
-              // Target Reward Goal Progress (Show progress towards the cheapest reward student can't yet afford)
-              RewardModel? targetReward;
-              for (final r in filtered) {
-                if (r.coinCost > gamification.coins) {
-                  if (targetReward == null || r.coinCost < targetReward.coinCost) {
-                    targetReward = r;
-                  }
-                }
-              }
+              return StreamBuilder<List<RewardRedemptionModel>>(
+                stream: _gamificationService.streamStudentRedemptions(
+                  _activeStudentId,
+                ),
+                builder: (context, redemptionsSnapshot) {
+                  final myRedemptions = redemptionsSnapshot.data ?? [];
 
-              return ListView(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
-                children: [
-                  // TARGET PROGRESS BANNER (IF APPLICABLE)
-                  if (targetReward != null) ...[
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: AppColors.lavenderLight,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppColors.lavender.withValues(alpha: 0.3)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              const Icon(Icons.flag_outlined, size: 16, color: AppColors.lavenderDark),
-                              const SizedBox(width: 6),
-                              Text(
-                                'Next Goal: ${targetReward.title}',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                  color: AppColors.lavenderDark,
-                                ),
-                              ),
-                              const Spacer(),
-                              Text(
-                                '${gamification.coins} / ${targetReward.coinCost} coins',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
-                                  color: AppColors.lavenderDark,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(6),
-                            child: LinearProgressIndicator(
-                              value: (gamification.coins / targetReward.coinCost).clamp(0.0, 1.0),
-                              minHeight: 7,
-                              backgroundColor: Colors.white,
-                              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.lavender),
+                  return ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+                    children: [
+                      // REWARD CARDS
+                      ...filtered.map((r) {
+                        final userRedemptionsForReward = myRedemptions
+                            .where(
+                              (red) =>
+                                  red.rewardId == r.id &&
+                                  red.status != RedemptionStatuses.cancelled &&
+                                  red.status != RedemptionStatuses.rejected &&
+                                  red.status != RedemptionStatuses.refunded,
+                            )
+                            .toList();
+                        final int studentRedeemedCount =
+                            userRedemptionsForReward.length;
+                        final bool isLimitReached =
+                            r.perStudentLimit > 0 &&
+                            studentRedeemedCount >= r.perStudentLimit;
+                        final canAfford = gamification.coins >= r.coinCost;
+                        final isOutOfStock = r.isOutOfStock;
+                        final bool isRedeemDisabled =
+                            isLimitReached || isOutOfStock || !canAfford;
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: AppColors.cardWhite,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(
+                              color: isLimitReached
+                                  ? AppColors.lavender.withValues(alpha: 0.5)
+                                  : AppColors.border,
                             ),
                           ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'Earn ${targetReward.coinCost - gamification.coins} more coins to unlock this reward.',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                  ],
-
-                  // REWARD CARDS
-                  ...filtered.map((r) {
-                    final canAfford = gamification.coins >= r.coinCost;
-                    final isOutOfStock = r.isOutOfStock;
-
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppColors.cardWhite,
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: AppColors.border),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: AppColors.lavenderLight,
-                                  borderRadius: BorderRadius.circular(8),
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 3,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.lavenderLight,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      RewardCategories.getLabel(r.category),
+                                      style: const TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.lavenderDark,
+                                      ),
+                                    ),
+                                  ),
+                                  if (r.isDemoOrSample) ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 3,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.coralLight,
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: AppColors.coralDark.withValues(
+                                            alpha: 0.3,
+                                          ),
+                                        ),
+                                      ),
+                                      child: const Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.science_outlined,
+                                            size: 10,
+                                            color: AppColors.coralDark,
+                                          ),
+                                          SizedBox(width: 3),
+                                          Text(
+                                            'Sample / Demo Perk',
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                              color: AppColors.coralDark,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                  if (isLimitReached) ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 3,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.lavenderLight,
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: AppColors.lavender.withValues(
+                                            alpha: 0.5,
+                                          ),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(
+                                            Icons.check_circle,
+                                            size: 11,
+                                            color: AppColors.lavenderDark,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            r.perStudentLimit == 1
+                                                ? 'Already redeemed'
+                                                : 'Limit reached ($studentRedeemedCount/${r.perStudentLimit})',
+                                            style: const TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                              color: AppColors.lavenderDark,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                  const Spacer(),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: canAfford && !isLimitReached
+                                          ? AppColors.coralLight
+                                          : AppColors.background,
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: canAfford && !isLimitReached
+                                            ? AppColors.coral
+                                            : AppColors.border,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.monetization_on,
+                                          size: 14,
+                                          color: canAfford && !isLimitReached
+                                              ? AppColors.coralDark
+                                              : AppColors.textSecondary,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          '${r.coinCost} Coins',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 12,
+                                            color: canAfford && !isLimitReached
+                                                ? AppColors.coralDark
+                                                : AppColors.textSecondary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                r.title,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                  color: AppColors.textMain,
                                 ),
-                                child: Text(
-                                  RewardCategories.getLabel(r.category),
+                              ),
+                              if (r.description.isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  r.description,
                                   style: const TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.lavenderDark,
+                                    fontSize: 13,
+                                    color: AppColors.textSecondary,
+                                    height: 1.3,
                                   ),
                                 ),
-                              ),
-                              const Spacer(),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: canAfford ? AppColors.coralLight : AppColors.background,
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: canAfford ? AppColors.coral : AppColors.border,
+                              ],
+                              if (r.isDemoOrSample) ...[
+                                const SizedBox(height: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.lavenderLight.withValues(
+                                      alpha: 0.5,
+                                    ),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: const Text(
+                                    'Demonstration item for campus rewards system. Does not replace official accredited college issuance.',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontStyle: FontStyle.italic,
+                                      color: AppColors.lavenderDark,
+                                    ),
                                   ),
                                 ),
-                                child: Row(
+                              ],
+                              if (r.eligibilityYears.isNotEmpty ||
+                                  r.eligibilityDepartments.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Row(
                                   children: [
-                                    Icon(
-                                      Icons.monetization_on,
-                                      size: 14,
-                                      color: canAfford ? AppColors.coralDark : AppColors.textSecondary,
+                                    const Icon(
+                                      Icons.school_outlined,
+                                      size: 12,
+                                      color: AppColors.textSecondary,
                                     ),
                                     const SizedBox(width: 4),
-                                    Text(
-                                      '${r.coinCost} Coins',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 12,
-                                        color: canAfford ? AppColors.coralDark : AppColors.textSecondary,
+                                    Expanded(
+                                      child: Text(
+                                        'Eligibility: ${r.eligibilityYears.isNotEmpty ? 'Years ${r.eligibilityYears.join(", ")}' : ''}${r.eligibilityYears.isNotEmpty && r.eligibilityDepartments.isNotEmpty ? ' • ' : ''}${r.eligibilityDepartments.isNotEmpty ? 'Depts ${r.eligibilityDepartments.join(", ")}' : ''}',
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          color: AppColors.textSecondary,
+                                        ),
                                       ),
                                     ),
                                   ],
                                 ),
+                              ],
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        r.isUnlimitedStock
+                                            ? 'Available'
+                                            : 'Remaining: ${r.availableStock}',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                          color: isOutOfStock
+                                              ? AppColors.pinkDark
+                                              : AppColors.mintDark,
+                                        ),
+                                      ),
+                                      if (r.perStudentLimit > 0)
+                                        Text(
+                                          isLimitReached
+                                              ? (r.perStudentLimit == 1
+                                                    ? 'One-time reward (Redeemed)'
+                                                    : 'Limit reached ($studentRedeemedCount/${r.perStudentLimit})')
+                                              : 'Limit: ${r.perStudentLimit} per student',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: isLimitReached
+                                                ? FontWeight.bold
+                                                : FontWeight.normal,
+                                            color: isLimitReached
+                                                ? AppColors.lavenderDark
+                                                : AppColors.textSecondary,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                  const Spacer(),
+                                  ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: isRedeemDisabled
+                                          ? AppColors.border
+                                          : AppColors.coral,
+                                      foregroundColor: isRedeemDisabled
+                                          ? AppColors.textSecondary
+                                          : Colors.white,
+                                      elevation: 0,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 10,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                    onPressed: isRedeemDisabled
+                                        ? null
+                                        : () => _handleRewardRedeemClick(
+                                            r,
+                                            gamification,
+                                            studentRedeemedCount:
+                                                studentRedeemedCount,
+                                          ),
+                                    child: Text(
+                                      isLimitReached
+                                          ? (r.perStudentLimit == 1
+                                                ? 'Already redeemed'
+                                                : 'Limit reached')
+                                          : (isOutOfStock
+                                                ? 'Out of Stock'
+                                                : (canAfford
+                                                      ? 'Redeem Reward'
+                                                      : 'Need ${r.coinCost - gamification.coins} More')),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            r.title,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              color: AppColors.textMain,
-                            ),
-                          ),
-                          if (r.description.isNotEmpty) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              r.description,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: AppColors.textSecondary,
-                                height: 1.3,
-                              ),
-                            ),
-                          ],
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Text(
-                                r.isUnlimitedStock ? 'Available' : 'Remaining: ${r.availableStock}',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: isOutOfStock ? AppColors.pinkDark : AppColors.mintDark,
-                                ),
-                              ),
-                              const Spacer(),
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: canAfford && !isOutOfStock
-                                      ? AppColors.coral
-                                      : AppColors.border,
-                                  foregroundColor: canAfford && !isOutOfStock
-                                      ? Colors.white
-                                      : AppColors.textSecondary,
-                                  elevation: 0,
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
-                                onPressed: isOutOfStock
-                                    ? null
-                                    : () => _handleRewardRedeemClick(r, gamification),
-                                child: Text(
-                                  isOutOfStock
-                                      ? 'Out of Stock'
-                                      : (canAfford
-                                          ? 'Redeem Reward'
-                                          : 'Need ${r.coinCost - gamification.coins} More'),
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    );
-                  }),
-                ],
+                        );
+                      }),
+                    ],
+                  );
+                },
               );
             },
           ),
@@ -944,7 +1230,11 @@ class _GamificationDashboardScreenState
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.receipt_long_outlined, size: 48, color: AppColors.textSecondary),
+                  const Icon(
+                    Icons.receipt_long_outlined,
+                    size: 48,
+                    color: AppColors.textSecondary,
+                  ),
                   const SizedBox(height: 14),
                   const Text(
                     'No Redemptions Yet',
@@ -954,7 +1244,10 @@ class _GamificationDashboardScreenState
                   const Text(
                     'Explore the Rewards tab to redeem free event registration passes, certificate benefits, and campus perks using your earned coins.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 ],
               ),
@@ -984,7 +1277,10 @@ class _GamificationDashboardScreenState
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: statusBg,
                           borderRadius: BorderRadius.circular(8),
@@ -1061,7 +1357,373 @@ class _GamificationDashboardScreenState
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
       children: [
-        // STREAK SUMMARY CARD
+        // 1. DAILY APP-OPEN STREAK CARD
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.cardWhite,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: const BoxDecoration(
+                      color: AppColors.lavenderLight,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.bolt,
+                      color: AppColors.lavenderDark,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              '${gamification.dailyStreak} ${gamification.streakSymbol} Consecutive Days',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textMain,
+                              ),
+                            ),
+                            const Spacer(),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.lavenderLight,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Text(
+                                'Daily Streak',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.lavenderDark,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Daily App-Open Streak • Best: ${gamification.longestDailyStreak} days',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              // Today's Status Banner
+              Builder(
+                builder: (context) {
+                  final todayKey = GamificationService.getCalendarDateKey(
+                    DateTime.now(),
+                  );
+                  final isClaimedToday = gamification.isDailyOpenClaimedForDate(
+                    todayKey,
+                  );
+                  return Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isClaimedToday
+                          ? AppColors.mintLight
+                          : AppColors.coralLight,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          isClaimedToday ? Icons.check_circle : Icons.schedule,
+                          size: 16,
+                          color: isClaimedToday
+                              ? AppColors.mintDark
+                              : AppColors.coralDark,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          isClaimedToday
+                              ? 'Today\'s check-in recorded • Day ${gamification.dailyStreak} streak active'
+                              : 'Daily check-in pending for today',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: isClaimedToday
+                                ? AppColors.mintDark
+                                : AppColors.coralDark,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+              // 7-day activity strip
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: List.generate(7, (i) {
+                  final dayDate = DateTime.now().subtract(
+                    Duration(days: 6 - i),
+                  );
+                  final dayKey = GamificationService.getCalendarDateKey(
+                    dayDate,
+                  );
+                  final isChecked =
+                      gamification.distinctDailyOpenDates.contains(dayKey) ||
+                      gamification.lastDailyOpenDate == dayKey;
+                  final dayLabel = [
+                    'M',
+                    'T',
+                    'W',
+                    'T',
+                    'F',
+                    'S',
+                    'S',
+                  ][dayDate.weekday - 1];
+                  final isToday = i == 6;
+
+                  return Column(
+                    children: [
+                      Text(
+                        dayLabel,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: isToday
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                          color: isToday
+                              ? AppColors.coralDark
+                              : AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isChecked
+                              ? AppColors.mintDark
+                              : AppColors.background,
+                          border: Border.all(
+                            color: isToday ? AppColors.coral : AppColors.border,
+                            width: isToday ? 1.5 : 1.0,
+                          ),
+                        ),
+                        child: Center(
+                          child: isChecked
+                              ? const Icon(
+                                  Icons.check,
+                                  size: 14,
+                                  color: Colors.white,
+                                )
+                              : Text(
+                                  '${dayDate.day}',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: isToday
+                                        ? AppColors.coralDark
+                                        : AppColors.textSecondary,
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ],
+                  );
+                }),
+              ),
+              const SizedBox(height: 14),
+              // Choose Streak Symbol Banner
+              InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () {
+                  StreakSymbolSelectorDialog.show(
+                    context,
+                    studentId: _activeStudentId,
+                    currentSymbol: gamification.streakSymbol,
+                  );
+                },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 11,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.cardWhite,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: const BoxDecoration(
+                          color: AppColors.coralLight,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          gamification.streakSymbol,
+                          style: const TextStyle(fontSize: 18),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Text(
+                                  'Choose Your Streak Symbol',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.textMain,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.mintLight,
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    StreakSymbols.labelFor(
+                                      gamification.streakSymbol,
+                                    ),
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.mintDark,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            const Text(
+                              'Personalize your daily poll & campus engagement icon (🔥 ⚡ 🌟 💎 🌸)',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        color: AppColors.textSecondary,
+                        size: 20,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              // Streak Philosophy Banner
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF7ED),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFFFEDD5)),
+                ),
+                child: const Text(
+                  '“Streaks are more valuable than you think. 🔥 Keep showing up every day and discover what consistency unlocks.”',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF9A3412),
+                    height: 1.35,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              // Daily Streak Milestones
+              const Text(
+                'Streak Milestones',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textMain,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  _buildStreakMilestoneChip(
+                    '3 Days',
+                    3,
+                    gamification.dailyStreak,
+                    gamification.isBadgeUnlocked('daily_streak_3'),
+                    '🔥',
+                  ),
+                  const SizedBox(width: 6),
+                  _buildStreakMilestoneChip(
+                    '7 Days',
+                    7,
+                    gamification.dailyStreak,
+                    gamification.isBadgeUnlocked('daily_streak_7'),
+                    '⚡',
+                  ),
+                  const SizedBox(width: 6),
+                  _buildStreakMilestoneChip(
+                    '14 Days',
+                    14,
+                    gamification.dailyStreak,
+                    gamification.isBadgeUnlocked('daily_streak_14'),
+                    '🌟',
+                  ),
+                  const SizedBox(width: 6),
+                  _buildStreakMilestoneChip(
+                    '30 Days',
+                    30,
+                    gamification.dailyStreak,
+                    gamification.isBadgeUnlocked('daily_streak_30'),
+                    '👑',
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 12),
+
+        // 2. EVENT ATTENDANCE STREAK CARD
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -1072,7 +1734,7 @@ class _GamificationDashboardScreenState
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(10),
                 decoration: const BoxDecoration(
                   color: AppColors.coralLight,
                   shape: BoxShape.circle,
@@ -1080,7 +1742,7 @@ class _GamificationDashboardScreenState
                 child: const Icon(
                   Icons.local_fire_department,
                   color: AppColors.coralDark,
-                  size: 28,
+                  size: 24,
                 ),
               ),
               const SizedBox(width: 14),
@@ -1089,16 +1751,16 @@ class _GamificationDashboardScreenState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${gamification.currentStreak} Consecutive Days',
+                      '${gamification.currentStreak} Consecutive Event Days',
                       style: const TextStyle(
-                        fontSize: 16,
+                        fontSize: 15,
                         fontWeight: FontWeight.bold,
                         color: AppColors.textMain,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Best streak: ${gamification.longestStreak} days • ${gamification.distinctAttendedDates.length} active event days',
+                      'Event Attendance Streak • Best: ${gamification.longestStreak} days • ${gamification.totalEventsAttended} events verified',
                       style: const TextStyle(
                         fontSize: 12,
                         color: AppColors.textSecondary,
@@ -1157,96 +1819,108 @@ class _GamificationDashboardScreenState
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: isUnlocked ? AppColors.cardWhite : AppColors.cardWhite.withValues(alpha: 0.8),
+                color: isUnlocked
+                    ? AppColors.cardWhite
+                    : AppColors.cardWhite.withValues(alpha: 0.8),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: isUnlocked ? AppColors.coral : AppColors.border,
                 ),
               ),
               child: Row(
-              children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: isUnlocked ? AppColors.coralLight : AppColors.background,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: isUnlocked ? AppColors.coral : AppColors.border,
+                children: [
+                  Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: isUnlocked
+                          ? AppColors.coralLight
+                          : AppColors.background,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: isUnlocked ? AppColors.coral : AppColors.border,
+                      ),
+                    ),
+                    child: Icon(
+                      _getBadgeIcon(badge.id),
+                      size: 22,
+                      color: isUnlocked
+                          ? AppColors.coralDark
+                          : AppColors.textSecondary,
                     ),
                   ),
-                  child: Icon(
-                    _getBadgeIcon(badge.id),
-                    size: 22,
-                    color: isUnlocked ? AppColors.coralDark : AppColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            badge.name,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                          ),
-                          const Spacer(),
-                          if (isUnlocked)
-                            const Icon(Icons.check_circle, size: 16, color: AppColors.mintDark)
-                          else
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
                             Text(
-                              progressText,
+                              badge.name,
                               style: const TextStyle(
-                                fontSize: 11,
                                 fontWeight: FontWeight.bold,
-                                color: AppColors.coral,
+                                fontSize: 14,
                               ),
                             ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        badge.description,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
+                            const Spacer(),
+                            if (isUnlocked)
+                              const Icon(
+                                Icons.check_circle,
+                                size: 16,
+                                color: AppColors.mintDark,
+                              )
+                            else
+                              Text(
+                                progressText,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.coral,
+                                ),
+                              ),
+                          ],
                         ),
-                      ),
-                      if (!isUnlocked) ...[
-                        const SizedBox(height: 6),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value: progress,
-                            minHeight: 5,
-                            backgroundColor: AppColors.border,
-                            valueColor: const AlwaysStoppedAnimation<Color>(AppColors.coral),
-                          ),
-                        ),
-                      ] else if (unlockedAt != null) ...[
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 2),
                         Text(
-                          'Unlocked on ${DateFormatter.formatFullDateTime(unlockedAt)}',
+                          badge.description,
                           style: const TextStyle(
-                            fontSize: 10,
-                            color: AppColors.mintDark,
-                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
                           ),
                         ),
+                        if (!isUnlocked) ...[
+                          const SizedBox(height: 6),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: LinearProgressIndicator(
+                              value: progress,
+                              minHeight: 5,
+                              backgroundColor: AppColors.border,
+                              valueColor: const AlwaysStoppedAnimation<Color>(
+                                AppColors.coral,
+                              ),
+                            ),
+                          ),
+                        ] else if (unlockedAt != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'Unlocked on ${DateFormatter.formatFullDateTime(unlockedAt)}',
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: AppColors.mintDark,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        );
-      }),
+          );
+        }),
       ],
     );
   }
@@ -1299,13 +1973,19 @@ class _GamificationDashboardScreenState
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: isCredit ? AppColors.mintLight : AppColors.coralLight,
+                      color: isCredit
+                          ? AppColors.mintLight
+                          : AppColors.coralLight,
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
-                      isCredit ? Icons.add_circle_outline : Icons.remove_circle_outline,
+                      isCredit
+                          ? Icons.add_circle_outline
+                          : Icons.remove_circle_outline,
                       size: 18,
-                      color: isCredit ? AppColors.mintDark : AppColors.coralDark,
+                      color: isCredit
+                          ? AppColors.mintDark
+                          : AppColors.coralDark,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -1346,7 +2026,9 @@ class _GamificationDashboardScreenState
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 15,
-                      color: isCredit ? AppColors.mintDark : AppColors.coralDark,
+                      color: isCredit
+                          ? AppColors.mintDark
+                          : AppColors.coralDark,
                     ),
                   ),
                 ],
@@ -1388,16 +2070,133 @@ class _GamificationDashboardScreenState
               ),
               const SizedBox(height: 6),
               const Text(
-                'Invite your classmates to register and attend college events. When they verify their first event attendance, you earn +50 coins!',
-                style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.3),
+                '“Invite a friend. Attend your first event together. Both of you earn 50 bonus coins after their first verified attendance!”',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.coralDark,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 12),
+              // TWO-SIDED REWARD BREAKDOWN CARD
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(7),
+                            decoration: const BoxDecoration(
+                              color: AppColors.coralLight,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.person_add_alt_1,
+                              color: AppColors.coralDark,
+                              size: 16,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'You (Referrer)',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                                Text(
+                                  '+50 Coins',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.coralDark,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      height: 28,
+                      width: 1,
+                      color: AppColors.border,
+                      margin: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(7),
+                            decoration: const BoxDecoration(
+                              color: AppColors.mintLight,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.card_giftcard,
+                              color: AppColors.mintDark,
+                              size: 16,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Your Friend',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                                Text(
+                                  '+50 Coins',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.mintDark,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 14),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.lavenderLight,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.lavender.withValues(alpha: 0.3)),
+                  border: Border.all(
+                    color: AppColors.lavender.withValues(alpha: 0.3),
+                  ),
                 ),
                 child: Row(
                   children: [
@@ -1412,20 +2211,65 @@ class _GamificationDashboardScreenState
                       ),
                     ),
                     const Spacer(),
-                    TextButton.icon(
-                      style: TextButton.styleFrom(
-                        foregroundColor: AppColors.lavenderDark,
-                        padding: EdgeInsets.zero,
-                        minimumSize: Size.zero,
-                      ),
-                      onPressed: () {
-                        Clipboard.setData(ClipboardData(text: code));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Referral code copied to clipboard!')),
-                        );
-                      },
-                      icon: const Icon(Icons.copy, size: 16),
-                      label: const Text('Copy'),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextButton.icon(
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppColors.lavenderDark,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 4,
+                            ),
+                            minimumSize: Size.zero,
+                          ),
+                          onPressed: () {
+                            Clipboard.setData(ClipboardData(text: code));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Referral code copied to clipboard!',
+                                ),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.copy, size: 15),
+                          label: const Text(
+                            'Copy',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        TextButton.icon(
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppColors.coralDark,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 4,
+                            ),
+                            minimumSize: Size.zero,
+                          ),
+                          onPressed: () {
+                            final shareMsg =
+                                '“Invite a friend. Attend your first event together. Both of you earn 50 bonus coins after their first verified attendance!” Use my referral code "$code" on College Events.';
+                            Clipboard.setData(ClipboardData(text: shareMsg));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Referral invite copied! Share it with friends:\n"$code"',
+                                ),
+                                backgroundColor: AppColors.mintDark,
+                                duration: const Duration(seconds: 4),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.share, size: 15),
+                          label: const Text(
+                            'Share',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -1436,7 +2280,7 @@ class _GamificationDashboardScreenState
 
         const SizedBox(height: 16),
 
-        // APPLY A PEER'S CODE (IF NOT YET REFERRED)
+        // APPLY A PEER'S CODE (IF NOT YET REFERRED) OR SHOW LINKED STATUS
         if (gamification.referredBy.isEmpty) ...[
           Container(
             padding: const EdgeInsets.all(16),
@@ -1454,8 +2298,12 @@ class _GamificationDashboardScreenState
                 ),
                 const SizedBox(height: 4),
                 const Text(
-                  'Enter their code before attending your first event to receive +25 welcome coins upon check-in.',
-                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  'Enter their code before attending your first event. Both of you earn 50 bonus coins upon your first verified check-in!',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                    height: 1.3,
+                  ),
                 ),
                 const SizedBox(height: 10),
                 Row(
@@ -1478,12 +2326,17 @@ class _GamificationDashboardScreenState
                         foregroundColor: Colors.white,
                         elevation: 0,
                       ),
-                      onPressed: _isSubmittingReferral ? null : _applyReferralCode,
+                      onPressed: _isSubmittingReferral
+                          ? null
+                          : _applyReferralCode,
                       child: _isSubmittingReferral
                           ? const SizedBox(
                               width: 16,
                               height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
                             )
                           : const Text('Apply'),
                     ),
@@ -1493,10 +2346,151 @@ class _GamificationDashboardScreenState
             ),
           ),
           const SizedBox(height: 16),
+        ] else ...[
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.mintLight.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: AppColors.mintDark.withValues(alpha: 0.3),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.check_circle_outline,
+                    color: AppColors.mintDark,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Classmate Referral Code Linked',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                          color: AppColors.textMain,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Referred by code "${gamification.referredBy}". Both of you earn 50 bonus coins when you complete your first verified event attendance!',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textSecondary,
+                          height: 1.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
         ],
 
+        // HOW COINS CAN BE REDEEMED (PERKS GUIDE)
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.cardWhite,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AppColors.lavenderLight,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.redeem_rounded,
+                      color: AppColors.lavenderDark,
+                      size: 18,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'What Can You Redeem With Coins?',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: AppColors.textMain,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Campus coins give students real perks in the Rewards Centre:',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                  height: 1.3,
+                ),
+              ),
+              const SizedBox(height: 10),
+              _buildPerkRow(
+                Icons.confirmation_number_outlined,
+                'Free Event Passes',
+                'Redeem 100% free registrations for premium paid workshops and college symposiums.',
+              ),
+              const SizedBox(height: 8),
+              _buildPerkRow(
+                Icons.workspace_premium_outlined,
+                'Digital Recognitions',
+                'Claim digital achievement certificates and milestone recognition badges.',
+              ),
+              const SizedBox(height: 8),
+              _buildPerkRow(
+                Icons.stars_outlined,
+                'Campus Perks',
+                'Unlock merchandise discounts and priority check-in privileges when configured.',
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => _tabController.animateTo(0),
+                  icon: const Icon(Icons.storefront_outlined, size: 15),
+                  label: const Text(
+                    'Browse Rewards Catalogue',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.coralDark,
+                    side: const BorderSide(color: AppColors.coral),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
         const Text(
-          'Referred Students Status',
+          'Referral Reward History',
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
         ),
         const SizedBox(height: 8),
@@ -1516,8 +2510,11 @@ class _GamificationDashboardScreenState
                   border: Border.all(color: AppColors.border),
                 ),
                 child: const Text(
-                  'No students have joined with your code yet. Share your code to start earning referral rewards!',
-                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  'No students have joined with your code yet. Share your code to start earning 50 coins for every friend who attends their first event!',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               );
             }
@@ -1529,27 +2526,38 @@ class _GamificationDashboardScreenState
               separatorBuilder: (_, _) => const SizedBox(height: 8),
               itemBuilder: (context, index) {
                 final ref = referrals[index];
-                final isQualified = ref.status == 'qualified';
+                final isCompleted = ref.isCompleted;
 
                 return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.cardWhite,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.border),
+                    border: Border.all(
+                      color: isCompleted
+                          ? AppColors.mintDark.withValues(alpha: 0.3)
+                          : AppColors.border,
+                    ),
                   ),
                   child: Row(
                     children: [
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: isQualified ? AppColors.mintLight : AppColors.background,
+                          color: isCompleted
+                              ? AppColors.mintLight
+                              : AppColors.lavenderLight,
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
-                          isQualified ? Icons.verified : Icons.hourglass_top,
+                          isCompleted ? Icons.verified : Icons.hourglass_top,
                           size: 16,
-                          color: isQualified ? AppColors.mintDark : AppColors.textSecondary,
+                          color: isCompleted
+                              ? AppColors.mintDark
+                              : AppColors.lavenderDark,
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -1560,28 +2568,76 @@ class _GamificationDashboardScreenState
                             Text(
                               ref.referredName.isNotEmpty
                                   ? ref.referredName
-                                  : 'Student ${ref.referredUid.substring(0, 4).toUpperCase()}',
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                  : 'Student ${ref.referredUid.length > 4 ? ref.referredUid.substring(0, 4).toUpperCase() : ref.referredUid}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
                             ),
+                            const SizedBox(height: 2),
                             Text(
-                              isQualified
-                                  ? 'Qualified (First Event Attended)'
-                                  : 'Pending (Awaiting first event check-in)',
+                              isCompleted
+                                  ? 'Completed • 1st event verified (+50 coins to both)'
+                                  : 'Pending • Awaiting first event check-in',
                               style: TextStyle(
                                 fontSize: 11,
-                                color: isQualified ? AppColors.mintDark : AppColors.textSecondary,
+                                fontWeight: isCompleted
+                                    ? FontWeight.w600
+                                    : FontWeight.normal,
+                                color: isCompleted
+                                    ? AppColors.mintDark
+                                    : AppColors.textSecondary,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      Text(
-                        isQualified ? '+${ref.coinsAwarded} pts' : 'Pending',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                          color: isQualified ? AppColors.mintDark : AppColors.textSecondary,
-                        ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isCompleted
+                                  ? AppColors.mintLight
+                                  : AppColors.yellowLight,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: isCompleted
+                                    ? AppColors.mintDark.withValues(alpha: 0.3)
+                                    : AppColors.yellowDark.withValues(
+                                        alpha: 0.3,
+                                      ),
+                              ),
+                            ),
+                            child: Text(
+                              isCompleted ? 'Completed' : 'Pending',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: isCompleted
+                                    ? AppColors.mintDark
+                                    : AppColors.yellowDark,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            isCompleted
+                                ? '+${ref.coinsAwarded > 0 ? ref.coinsAwarded : 50} coins'
+                                : '50 coins on check-in',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: isCompleted
+                                  ? AppColors.mintDark
+                                  : AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -1594,11 +2650,117 @@ class _GamificationDashboardScreenState
     );
   }
 
+  Widget _buildPerkRow(IconData icon, String title, String description) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: AppColors.lavenderLight,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 16, color: AppColors.lavenderDark),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                  color: AppColors.textMain,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                description,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                  height: 1.3,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStreakMilestoneChip(
+    String label,
+    int target,
+    int current,
+    bool unlocked,
+    String emoji,
+  ) {
+    final reached = unlocked || current >= target;
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        decoration: BoxDecoration(
+          color: reached ? AppColors.mintLight : AppColors.background,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: reached ? AppColors.mint : AppColors.border,
+            width: reached ? 1.5 : 1.0,
+          ),
+        ),
+        child: Column(
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 14)),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: reached ? AppColors.mintDark : AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              reached ? 'Unlocked' : '$current/$target',
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: reached ? FontWeight.bold : FontWeight.normal,
+                color: reached ? AppColors.mintDark : AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ========================================================
   // REDEMPTION LOGIC & MODALS
   // ========================================================
 
-  void _handleRewardRedeemClick(RewardModel reward, GamificationModel gamification) {
+  void _handleRewardRedeemClick(
+    RewardModel reward,
+    GamificationModel gamification, {
+    int studentRedeemedCount = 0,
+  }) {
+    if (reward.perStudentLimit > 0 &&
+        studentRedeemedCount >= reward.perStudentLimit) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            reward.perStudentLimit == 1
+                ? 'You have already redeemed this one-time reward.'
+                : 'You have reached the maximum redemption limit (${reward.perStudentLimit}) for this reward.',
+          ),
+          backgroundColor: AppColors.coralDark,
+        ),
+      );
+      return;
+    }
+
     if (gamification.coins < reward.coinCost) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -1613,7 +2775,9 @@ class _GamificationDashboardScreenState
 
     if (_currentUser == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('User profile loading, please try again.')),
+        const SnackBar(
+          content: Text('User profile loading, please try again.'),
+        ),
       );
       return;
     }
@@ -1637,7 +2801,10 @@ class _GamificationDashboardScreenState
             children: [
               Text(
                 reward.description,
-                style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
               ),
               const SizedBox(height: 12),
               Container(
@@ -1648,7 +2815,11 @@ class _GamificationDashboardScreenState
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.monetization_on, color: AppColors.coralDark, size: 18),
+                    const Icon(
+                      Icons.monetization_on,
+                      color: AppColors.coralDark,
+                      size: 18,
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       'Cost: ${reward.coinCost} coins',
@@ -1664,7 +2835,31 @@ class _GamificationDashboardScreenState
                 const SizedBox(height: 12),
                 Text(
                   'Terms: ${reward.termsAndConditions}',
-                  style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+              if (reward.isDemoOrSample) ...[
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.coralLight,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: AppColors.coralDark.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: const Text(
+                    'Note: This is a Sample / Demo Perk designed for campus rewards demonstration. Official academic certificates require institutional college verification.',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.coralDark,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ),
               ],
             ],
@@ -1762,7 +2957,11 @@ class _GamificationDashboardScreenState
                     }
 
                     final events = snapshot.data ?? [];
-                    final eligibleEvents = events.where((e) => !e.isDeadlinePassed && e.availableSeats > 0).toList();
+                    final eligibleEvents = events
+                        .where(
+                          (e) => !e.isDeadlinePassed && e.availableSeats > 0,
+                        )
+                        .toList();
 
                     if (eligibleEvents.isEmpty) {
                       return const Center(
@@ -1825,14 +3024,23 @@ class _GamificationDashboardScreenState
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppColors.coral,
                                   foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
                                   minimumSize: Size.zero,
                                 ),
                                 onPressed: () async {
                                   Navigator.pop(sheetCtx);
-                                  await _confirmAndExecuteFreeRegistration(reward, event);
+                                  await _confirmAndExecuteFreeRegistration(
+                                    reward,
+                                    event,
+                                  );
                                 },
-                                child: const Text('Apply Pass', style: TextStyle(fontSize: 12)),
+                                child: const Text(
+                                  'Apply Pass',
+                                  style: TextStyle(fontSize: 12),
+                                ),
                               ),
                             ],
                           ),
@@ -1849,7 +3057,10 @@ class _GamificationDashboardScreenState
     );
   }
 
-  Future<void> _confirmAndExecuteFreeRegistration(RewardModel reward, EventModel event) async {
+  Future<void> _confirmAndExecuteFreeRegistration(
+    RewardModel reward,
+    EventModel event,
+  ) async {
     try {
       final res = await _gamificationService.redeemFreeEventRegistration(
         studentId: _activeStudentId,
@@ -1873,18 +3084,27 @@ class _GamificationDashboardScreenState
                 const SizedBox(height: 10),
                 Text(
                   'Registration ID: ${res.registration.id}',
-                  style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 const Text(
                   'You can view your ticket and attendance details under "My Events".',
-                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ],
             ),
             actions: [
               ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: AppColors.coral, foregroundColor: Colors.white),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.coral,
+                  foregroundColor: Colors.white,
+                ),
                 onPressed: () => Navigator.pop(ctx),
                 child: const Text('Great!'),
               ),
@@ -1917,20 +3137,29 @@ class _GamificationDashboardScreenState
             const SizedBox(height: 8),
             Text(
               'Reference ID: ${redemption.id}',
-              style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                fontFamily: 'monospace',
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
               redemption.status == RedemptionStatuses.fulfilled
                   ? 'This reward is now active.'
                   : 'Your request has been submitted to college staff for fulfilment. Check the "My Redemptions" tab for updates.',
-              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+              ),
             ),
           ],
         ),
         actions: [
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.coral, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.coral,
+              foregroundColor: Colors.white,
+            ),
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Done'),
           ),
@@ -1946,6 +3175,23 @@ class _GamificationDashboardScreenState
     setState(() => _isSubmittingReferral = true);
 
     try {
+      final validation = await _gamificationService.validateReferralCode(
+        code,
+        currentUid: _activeStudentId,
+      );
+
+      if (!validation.isValid) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(validation.message),
+              backgroundColor: AppColors.pinkDark,
+            ),
+          );
+        }
+        return;
+      }
+
       final success = await _gamificationService.registerReferralCode(
         newStudentUid: _activeStudentId,
         newStudentName: _currentUser?.name ?? 'Student',
@@ -1954,8 +3200,12 @@ class _GamificationDashboardScreenState
 
       if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Referral code linked! You will receive bonus coins upon your first event attendance.'),
+          SnackBar(
+            content: Text(
+              validation.referrerName != null
+                  ? 'Referral code linked from ${validation.referrerName}! Both of you earn 50 bonus coins upon your first event check-in.'
+                  : 'Referral code linked! Both of you earn 50 bonus coins upon your first event check-in.',
+            ),
             backgroundColor: AppColors.mintDark,
           ),
         );
@@ -1963,7 +3213,9 @@ class _GamificationDashboardScreenState
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Referral code not found. Please check and try again.'),
+            content: Text(
+              'Failed to link referral code. Please check and try again.',
+            ),
             backgroundColor: AppColors.pinkDark,
           ),
         );
@@ -1971,7 +3223,10 @@ class _GamificationDashboardScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed: $e'), backgroundColor: AppColors.pinkDark),
+          SnackBar(
+            content: Text('Failed: $e'),
+            backgroundColor: AppColors.pinkDark,
+          ),
         );
       }
     } finally {
@@ -2008,7 +3263,10 @@ class _GamificationDashboardScreenState
         ),
         actions: [
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.coral, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.coral,
+              foregroundColor: Colors.white,
+            ),
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Got it!'),
           ),

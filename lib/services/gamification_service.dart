@@ -44,8 +44,8 @@ class GamificationService {
     try {
       final a = DateTime.parse(dateKeyA);
       final b = DateTime.parse(dateKeyB);
-      final dateOnlyA = DateTime(a.year, a.month, a.day);
-      final dateOnlyB = DateTime(b.year, b.month, b.day);
+      final dateOnlyA = DateTime.utc(a.year, a.month, a.day);
+      final dateOnlyB = DateTime.utc(b.year, b.month, b.day);
       return dateOnlyB.difference(dateOnlyA).inDays;
     } catch (_) {
       return 999;
@@ -78,6 +78,59 @@ class GamificationService {
       debugPrint('Error getting gamification profile: $e');
       return null;
     }
+  }
+
+  /// Ensures that a student has a persisted gamification document in Firestore
+  /// with a stable, unique referral code and initialized balances.
+  Future<GamificationModel> ensureStudentGamificationProfile(
+    String studentId, {
+    String? studentName,
+  }) async {
+    if (studentId.isEmpty) {
+      throw ArgumentError('Student ID cannot be empty');
+    }
+
+    final docRef = _gamificationCollection.doc(studentId);
+    final doc = await docRef.get();
+
+    if (doc.exists && doc.data() != null) {
+      final current = GamificationModel.fromSnapshot(doc);
+      // If referralCode was somehow empty, persist one now
+      if (current.referralCode.isEmpty) {
+        final clean = studentId
+            .replaceAll(RegExp(r'[^a-zA-Z0-9]'), '')
+            .toUpperCase();
+        final refCode = clean.length >= 6
+            ? 'CAMPUS-${clean.substring(0, 6)}'
+            : 'CAMPUS-${clean.padRight(6, 'X')}';
+        final updated = current.copyWith(
+          referralCode: refCode,
+          updatedAt: DateTime.now(),
+        );
+        await docRef.set(updated.toMap(), SetOptions(merge: true));
+        return updated;
+      }
+      return current;
+    }
+
+    // Generate stable unique referral code derived from studentId
+    final clean = studentId
+        .replaceAll(RegExp(r'[^a-zA-Z0-9]'), '')
+        .toUpperCase();
+    final refCode = clean.length >= 6
+        ? 'CAMPUS-${clean.substring(0, 6)}'
+        : 'CAMPUS-${clean.padRight(6, 'X')}';
+
+    final newModel = GamificationModel(
+      studentId: studentId,
+      coins: 0,
+      lifetimeCoins: 0,
+      referralCode: refCode,
+      updatedAt: DateTime.now(),
+    );
+
+    await docRef.set(newModel.toMap(), SetOptions(merge: true));
+    return newModel;
   }
 
   /// Streams reward history for a student ordered by newest first
@@ -116,7 +169,11 @@ class GamificationService {
 
   /// Computes updated gamification profile and reward record from existing state.
   /// Backward compatible: preserves exact signature while updating lifetimeCoins and streak rules.
-  static ({GamificationModel updatedGamification, RewardHistoryModel rewardRecord}) computeReward({
+  static ({
+    GamificationModel updatedGamification,
+    RewardHistoryModel rewardRecord,
+  })
+  computeReward({
     required GamificationModel currentGamification,
     required String studentId,
     required String eventId,
@@ -221,7 +278,10 @@ class GamificationService {
       createdAt: attendedAt,
     );
 
-    return (updatedGamification: updatedGamification, rewardRecord: rewardRecord);
+    return (
+      updatedGamification: updatedGamification,
+      rewardRecord: rewardRecord,
+    );
   }
 
   /// Evaluates streaks, badges, and coin rewards inside an ongoing Firestore Transaction.
@@ -280,35 +340,361 @@ class GamificationService {
     transaction.set(rewardRef, result.rewardRecord.toMap());
   }
 
+  /// Records a daily app-open check-in for an authenticated student.
+  /// Maintains/increments the daily app-open streak without awarding automatic coins.
+  /// Consecutive qualifying days increment the daily app-open streak.
+  /// A missed calendar day resets the daily streak to 1.
+  /// Re-opening on the same day is idempotent.
+  /// Unlocks milestone badges at 3, 7, 14, and 30 consecutive days.
+  Future<({bool awarded, int dailyStreak, int coins, String message})>
+  recordDailyAppOpen(String studentId, {DateTime? now}) async {
+    if (studentId.isEmpty) {
+      return (
+        awarded: false,
+        dailyStreak: 0,
+        coins: 0,
+        message: 'Invalid student ID',
+      );
+    }
+
+    final currentNow = now ?? DateTime.now();
+    final todayKey = getCalendarDateKey(currentNow);
+    final idempotencyId = 'DAILY_OPEN_${studentId}_$todayKey';
+
+    try {
+      return await _db.runTransaction((transaction) async {
+        final ledgerRef = _rewardHistoryCollection.doc(idempotencyId);
+        final ledgerDoc = await transaction.get(ledgerRef);
+
+        final gameRef = _gamificationCollection.doc(studentId);
+        final gameDoc = await transaction.get(gameRef);
+
+        GamificationModel currentGamification;
+        if (!gameDoc.exists || gameDoc.data() == null) {
+          final clean = studentId
+              .replaceAll(RegExp(r'[^a-zA-Z0-9]'), '')
+              .toUpperCase();
+          final refCode = clean.length >= 6
+              ? 'CAMPUS-${clean.substring(0, 6)}'
+              : 'CAMPUS-${clean.padRight(6, 'X')}';
+          currentGamification = GamificationModel(
+            studentId: studentId,
+            coins: 0,
+            lifetimeCoins: 0,
+            referralCode: refCode,
+          );
+        } else {
+          currentGamification = GamificationModel.fromSnapshot(gameDoc);
+        }
+
+        // If already claimed today in ledger or model, return current state without awarding again
+        if (ledgerDoc.exists ||
+            currentGamification.isDailyOpenClaimedForDate(todayKey)) {
+          return (
+            awarded: false,
+            dailyStreak: currentGamification.dailyStreak,
+            coins: currentGamification.coins,
+            message: 'Today\'s daily check-in already recorded!',
+          );
+        }
+
+        // Opening the app records that the student was active today in distinctDailyOpenDates,
+        // but reopening the app NEVER increments the daily streak by itself.
+        // The daily engagement streak is incremented exclusively by qualifying daily poll participation.
+        final int newDailyStreak = currentGamification.dailyStreak;
+        int newLongestDaily = currentGamification.longestDailyStreak;
+
+        if (newDailyStreak > newLongestDaily) {
+          newLongestDaily = newDailyStreak;
+        }
+
+        // Daily app-open streak does NOT award automatic coins.
+        // Existing coin balances remain unchanged.
+        final int newCoins = currentGamification.coins;
+        final int newLifetime = currentGamification.lifetimeCoins;
+
+        // Unlock daily streak milestone badges at 3, 7, 14, and 30 days
+        final Map<String, DateTime> updatedBadges = Map<String, DateTime>.from(
+          currentGamification.unlockedBadges,
+        );
+        if (newDailyStreak >= 3 &&
+            !updatedBadges.containsKey('daily_streak_3')) {
+          updatedBadges['daily_streak_3'] = currentNow;
+        }
+        if (newDailyStreak >= 7 &&
+            !updatedBadges.containsKey('daily_streak_7')) {
+          updatedBadges['daily_streak_7'] = currentNow;
+        }
+        if (newDailyStreak >= 14 &&
+            !updatedBadges.containsKey('daily_streak_14')) {
+          updatedBadges['daily_streak_14'] = currentNow;
+        }
+        if (newDailyStreak >= 30 &&
+            !updatedBadges.containsKey('daily_streak_30')) {
+          updatedBadges['daily_streak_30'] = currentNow;
+        }
+
+        final Set<String> updatedDailyDates = Set<String>.from(
+          currentGamification.distinctDailyOpenDates,
+        )..add(todayKey);
+
+        final updatedGamification = currentGamification.copyWith(
+          coins: newCoins,
+          lifetimeCoins: newLifetime,
+          dailyStreak: newDailyStreak,
+          longestDailyStreak: newLongestDaily,
+          lastDailyOpenDate: todayKey,
+          distinctDailyOpenDates: updatedDailyDates.toList(),
+          unlockedBadges: updatedBadges,
+          updatedAt: currentNow,
+        );
+
+        transaction.set(
+          gameRef,
+          updatedGamification.toMap(),
+          SetOptions(merge: true),
+        );
+
+        // Write auditable ledger record (0 coins awarded)
+        transaction.set(ledgerRef, {
+          'id': idempotencyId,
+          'studentId': studentId,
+          'amount': 0,
+          'coinsAwarded': 0,
+          'type': 'daily_app_open',
+          'rewardType': 'daily_app_open',
+          'title': 'Daily Streak Active',
+          'rewardReason': 'Day $newDailyStreak daily streak active',
+          'idempotencyKey': idempotencyId,
+          'createdAt': Timestamp.fromDate(currentNow),
+        });
+
+        return (
+          awarded: true,
+          dailyStreak: newDailyStreak,
+          coins: newCoins,
+          message:
+              'Day $newDailyStreak streak recorded! Keep the momentum going.',
+        );
+      });
+    } catch (e) {
+      debugPrint('Error recording daily app open: $e');
+      return (
+        awarded: false,
+        dailyStreak: 0,
+        coins: 0,
+        message: 'Error recording check-in: $e',
+      );
+    }
+  }
+
+  /// Updates the student's chosen streak symbol from the 5 supported symbols:
+  /// 🔥 Fire, ⚡ Lightning, 🌟 Star, 💎 Diamond, 🌸 Blossom
+  Future<bool> updateStreakSymbol(String studentId, String symbol) async {
+    if (studentId.isEmpty || !StreakSymbols.isValid(symbol)) return false;
+    try {
+      await _gamificationCollection.doc(studentId).set({
+        'streakSymbol': symbol,
+        'updatedAt': Timestamp.fromDate(DateTime.now()),
+      }, SetOptions(merge: true));
+      return true;
+    } catch (e) {
+      debugPrint('Error updating streak symbol: $e');
+      return false;
+    }
+  }
+
+  /// Records daily campus poll participation for a student.
+  /// First valid poll vote on a calendar day maintains/increments daily streak.
+  /// Subsequent poll votes on the same day do NOT increment the streak again.
+  /// Vote editing does NOT call this method.
+  Future<({bool isFirstToday, int dailyStreak, String symbol, String message})>
+  recordDailyPollVote(String studentId) async {
+    if (studentId.isEmpty) {
+      return (
+        isFirstToday: false,
+        dailyStreak: 0,
+        symbol: StreakSymbols.fire,
+        message: 'Student not authenticated.',
+      );
+    }
+
+    try {
+      final now = DateTime.now();
+      final todayKey = getCalendarDateKey(now);
+
+      return await _db.runTransaction((transaction) async {
+        final gameRef = _gamificationCollection.doc(studentId);
+        final gameDoc = await transaction.get(gameRef);
+
+        GamificationModel currentGamification;
+        if (!gameDoc.exists || gameDoc.data() == null) {
+          final clean = studentId
+              .replaceAll(RegExp(r'[^a-zA-Z0-9]'), '')
+              .toUpperCase();
+          final refCode = clean.length >= 6
+              ? 'CAMPUS-${clean.substring(0, 6)}'
+              : 'CAMPUS-${clean.padRight(6, 'X')}';
+
+          currentGamification = GamificationModel(
+            studentId: studentId,
+            dailyStreak: 0,
+            longestDailyStreak: 0,
+            lastDailyOpenDate: todayKey,
+            lastDailyPollDate: '',
+            distinctDailyOpenDates: [todayKey],
+            referralCode: refCode,
+            updatedAt: now,
+          );
+        } else {
+          currentGamification = GamificationModel.fromSnapshot(gameDoc);
+        }
+
+        // Idempotency check: If student already participated in a poll today, do NOT increment streak again
+        if (currentGamification.lastDailyPollDate == todayKey) {
+          return (
+            isFirstToday: false,
+            dailyStreak: currentGamification.dailyStreak,
+            symbol: currentGamification.streakSymbol,
+            message: 'Daily poll engagement already recorded for today.',
+          );
+        }
+
+        // Calculate consecutive daily engagement streak based on previous poll voting date
+        int newDailyStreak;
+        int newLongestDaily = currentGamification.longestDailyStreak;
+
+        if (currentGamification.lastDailyPollDate.isEmpty) {
+          // First poll participation ever: start at 1 or advance existing baseline
+          newDailyStreak = currentGamification.dailyStreak > 0
+              ? currentGamification.dailyStreak + 1
+              : 1;
+        } else {
+          final diff = daysDifference(
+            currentGamification.lastDailyPollDate,
+            todayKey,
+          );
+          if (diff == 1) {
+            // Consecutive calendar day! (yesterday was last poll vote)
+            newDailyStreak = currentGamification.dailyStreak + 1;
+          } else if (diff == 0) {
+            // Same day safeguard (already guarded above, but safe fallback)
+            newDailyStreak = currentGamification.dailyStreak > 0
+                ? currentGamification.dailyStreak
+                : 1;
+          } else {
+            // Missed one or more calendar days (diff > 1 or clock diff < 0) -> reset consecutive streak to 1
+            newDailyStreak = 1;
+          }
+        }
+
+        if (newDailyStreak > newLongestDaily) {
+          newLongestDaily = newDailyStreak;
+        }
+
+        // Unlock streak milestone badges (3, 7, 14, 30 days)
+        final Map<String, DateTime> updatedBadges = Map<String, DateTime>.from(
+          currentGamification.unlockedBadges,
+        );
+        if (newDailyStreak >= 3 &&
+            !updatedBadges.containsKey('daily_streak_3')) {
+          updatedBadges['daily_streak_3'] = now;
+        }
+        if (newDailyStreak >= 7 &&
+            !updatedBadges.containsKey('daily_streak_7')) {
+          updatedBadges['daily_streak_7'] = now;
+        }
+        if (newDailyStreak >= 14 &&
+            !updatedBadges.containsKey('daily_streak_14')) {
+          updatedBadges['daily_streak_14'] = now;
+        }
+        if (newDailyStreak >= 30 &&
+            !updatedBadges.containsKey('daily_streak_30')) {
+          updatedBadges['daily_streak_30'] = now;
+        }
+
+        final Set<String> updatedDailyDates = Set<String>.from(
+          currentGamification.distinctDailyOpenDates,
+        )..add(todayKey);
+
+        final updatedGamification = currentGamification.copyWith(
+          dailyStreak: newDailyStreak,
+          longestDailyStreak: newLongestDaily,
+          lastDailyOpenDate: todayKey,
+          lastDailyPollDate: todayKey,
+          distinctDailyOpenDates: updatedDailyDates.toList(),
+          unlockedBadges: updatedBadges,
+          updatedAt: now,
+        );
+
+        transaction.set(
+          gameRef,
+          updatedGamification.toMap(),
+          SetOptions(merge: true),
+        );
+
+        // Record auditable ledger entry (0 coins awarded)
+        final ledgerRef = _rewardHistoryCollection.doc(
+          'POLL_STREAK_${studentId}_$todayKey',
+        );
+        transaction.set(ledgerRef, {
+          'id': 'POLL_STREAK_${studentId}_$todayKey',
+          'studentId': studentId,
+          'amount': 0,
+          'coinsAwarded': 0,
+          'type': 'daily_poll_vote',
+          'rewardType': 'daily_poll_vote',
+          'title': 'Daily Poll Streak Active',
+          'rewardReason':
+              'Day $newDailyStreak streak maintained via Daily Campus Poll',
+          'idempotencyKey': 'POLL_STREAK_${studentId}_$todayKey',
+          'createdAt': Timestamp.fromDate(now),
+        });
+
+        return (
+          isFirstToday: true,
+          dailyStreak: newDailyStreak,
+          symbol: currentGamification.streakSymbol,
+          message:
+              'Day $newDailyStreak streak maintained! Keep making your voice heard.',
+        );
+      });
+    } catch (e) {
+      debugPrint('Error recording daily poll vote: $e');
+      return (
+        isFirstToday: false,
+        dailyStreak: 0,
+        symbol: StreakSymbols.fire,
+        message: 'Error recording poll streak: $e',
+      );
+    }
+  }
+
   // ==========================================
   // 3. REWARDS CATALOGUE MANAGEMENT
   // ==========================================
 
   /// Streams active available rewards for students
   Stream<List<RewardModel>> streamActiveRewards() {
-    return _rewardsCollection
-        .snapshots()
-        .map((snapshot) {
-          final list = snapshot.docs
-              .map((doc) => RewardModel.fromSnapshot(doc))
-              .where((r) => r.isEnabled && !r.isExpired)
-              .toList();
-          list.sort((a, b) => a.coinCost.compareTo(b.coinCost));
-          return list;
-        });
+    return _rewardsCollection.snapshots().map((snapshot) {
+      final list = snapshot.docs
+          .map((doc) => RewardModel.fromSnapshot(doc))
+          .where((r) => r.isEnabled && !r.isExpired)
+          .toList();
+      list.sort((a, b) => a.coinCost.compareTo(b.coinCost));
+      return list;
+    });
   }
 
   /// Streams all rewards for administrators (including disabled and expired)
   Stream<List<RewardModel>> streamAllRewardsAdmin() {
-    return _rewardsCollection
-        .snapshots()
-        .map((snapshot) {
-          final list = snapshot.docs
-              .map((doc) => RewardModel.fromSnapshot(doc))
-              .toList();
-          list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-          return list;
-        });
+    return _rewardsCollection.snapshots().map((snapshot) {
+      final list = snapshot.docs
+          .map((doc) => RewardModel.fromSnapshot(doc))
+          .toList();
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list;
+    });
   }
 
   /// Fetches a specific reward by ID
@@ -330,7 +716,11 @@ class GamificationService {
     final ref = reward.id.isNotEmpty
         ? _rewardsCollection.doc(reward.id)
         : _rewardsCollection.doc();
-    final toSave = reward.copyWith(id: ref.id, createdAt: DateTime.now(), updatedAt: DateTime.now());
+    final toSave = reward.copyWith(
+      id: ref.id,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
     await ref.set(toSave.toMap());
   }
 
@@ -354,12 +744,82 @@ class GamificationService {
     await _rewardsCollection.doc(rewardId).delete();
   }
 
+  /// Seeds demo/sample certificate benefits and campus perks if rewards catalogue is empty
+  Future<void> seedSampleCatalogueIfEmpty() async {
+    try {
+      final certsQuery = await _rewardsCollection
+          .where('category', isEqualTo: RewardCategories.certificate)
+          .limit(1)
+          .get();
+
+      if (certsQuery.docs.isNotEmpty) return;
+
+      final batch = _db.batch();
+
+      final sampleRewards = [
+        RewardModel(
+          id: 'cert_workshop_participation',
+          title: 'Workshop Participation Certificate (Sample Perk)',
+          description:
+              'Unlock sample digital certificate recognition acknowledging technical workshop attendance.',
+          category: RewardCategories.certificate,
+          coinCost: 150,
+          availableStock: -1,
+          isEnabled: true,
+          fulfilmentType: 'automatic',
+          termsAndConditions:
+              'Demonstration digital certificate benefit for campus rewards. Does not substitute official college academic credits.',
+        ),
+        RewardModel(
+          id: 'cert_tech_achievement',
+          title: 'Technical Event Achievement Certificate (Sample Perk)',
+          description:
+              'Redeem sample achievement certificate badge highlighting active participation in campus hackathons & tech events.',
+          category: RewardCategories.certificate,
+          coinCost: 250,
+          availableStock: -1,
+          isEnabled: true,
+          fulfilmentType: 'automatic',
+          termsAndConditions:
+              'Sample reward item demonstrating digital badge unlocks. Actual academic certificates require official college issuance.',
+        ),
+        RewardModel(
+          id: 'cert_campus_volunteer',
+          title: 'Campus Volunteer Recognition (Sample Perk)',
+          description:
+              'Honorary sample digital certificate recognizing student volunteer leadership at campus events.',
+          category: RewardCategories.certificate,
+          coinCost: 100,
+          availableStock: -1,
+          isEnabled: true,
+          fulfilmentType: 'automatic',
+          termsAndConditions:
+              'Sample demonstration benefit. Actual student volunteer certificates require verified committee attendance.',
+        ),
+      ];
+
+      for (final reward in sampleRewards) {
+        batch.set(
+          _rewardsCollection.doc(reward.id),
+          reward.toMap(),
+          SetOptions(merge: true),
+        );
+      }
+
+      await batch.commit();
+    } catch (e) {
+      debugPrint('Error seeding sample reward catalogue: $e');
+    }
+  }
+
   // ==========================================
   // 4. SECURE REWARD REDEMPTION & FULFILMENT
   // ==========================================
 
   /// Streams redemptions for a student
-  Stream<List<RewardRedemptionModel>> streamStudentRedemptions(String studentId) {
+  Stream<List<RewardRedemptionModel>> streamStudentRedemptions(
+    String studentId,
+  ) {
     if (studentId.isEmpty) return Stream.value([]);
     return _redemptionsCollection
         .where('studentId', isEqualTo: studentId)
@@ -374,9 +834,13 @@ class GamificationService {
   }
 
   /// Streams redemptions for admins with optional status filter
-  Stream<List<RewardRedemptionModel>> streamAllRedemptionsAdmin({String? statusFilter}) {
+  Stream<List<RewardRedemptionModel>> streamAllRedemptionsAdmin({
+    String? statusFilter,
+  }) {
     Query<Map<String, dynamic>> query = _redemptionsCollection;
-    if (statusFilter != null && statusFilter.isNotEmpty && statusFilter != 'All') {
+    if (statusFilter != null &&
+        statusFilter.isNotEmpty &&
+        statusFilter != 'All') {
       query = query.where('status', isEqualTo: statusFilter);
     }
     return query.snapshots().map((snapshot) {
@@ -398,7 +862,8 @@ class GamificationService {
       throw Exception('Invalid student ID or reward ID.');
     }
 
-    final String redemptionDocId = 'RED-${DateTime.now().millisecondsSinceEpoch}-${studentId.substring(0, min(4, studentId.length))}';
+    final String redemptionDocId =
+        'RED-${DateTime.now().millisecondsSinceEpoch}-${studentId.substring(0, min(4, studentId.length))}';
 
     return await _db.runTransaction((transaction) async {
       final rewardRef = _rewardsCollection.doc(rewardId);
@@ -528,7 +993,9 @@ class GamificationService {
       transaction.set(redemptionRef, redemption.toMap());
 
       // WRITE DEBIT LEDGER ENTRY
-      final ledgerRef = _rewardHistoryCollection.doc('${redemptionDocId}_ledger');
+      final ledgerRef = _rewardHistoryCollection.doc(
+        '${redemptionDocId}_ledger',
+      );
       final ledgerEntry = CoinTransactionModel(
         id: '${redemptionDocId}_ledger',
         studentId: studentId,
@@ -547,7 +1014,8 @@ class GamificationService {
   }
 
   /// Transactionally redeems a Free Event Registration reward and creates a genuine registration
-  Future<({RewardRedemptionModel redemption, RegistrationModel registration})> redeemFreeEventRegistration({
+  Future<({RewardRedemptionModel redemption, RegistrationModel registration})>
+  redeemFreeEventRegistration({
     required String studentId,
     required String rewardId,
     required EventModel event,
@@ -558,8 +1026,10 @@ class GamificationService {
     }
 
     final deterministicDocId = '${studentId}_${event.id}';
-    final String redemptionDocId = 'FREE-REG-${DateTime.now().millisecondsSinceEpoch}-${studentId.substring(0, min(4, studentId.length))}';
-    final String secureToken = 'TKT-${DateTime.now().millisecondsSinceEpoch.toRadixString(36).toUpperCase()}-${studentId.substring(0, min(4, studentId.length)).toUpperCase()}';
+    final String redemptionDocId =
+        'FREE-REG-${DateTime.now().millisecondsSinceEpoch}-${studentId.substring(0, min(4, studentId.length))}';
+    final String secureToken =
+        'TKT-${DateTime.now().millisecondsSinceEpoch.toRadixString(36).toUpperCase()}-${studentId.substring(0, min(4, studentId.length)).toUpperCase()}';
 
     return await _db.runTransaction((transaction) async {
       // 1. READ REWARD
@@ -578,16 +1048,21 @@ class GamificationService {
       if (!eventDoc.exists) throw Exception('Event not found.');
 
       final eventData = eventDoc.data()!;
-      final int capacity = (eventData['capacity'] ?? eventData['maxSeats'] ?? 100) as int;
+      final int capacity =
+          (eventData['capacity'] ?? eventData['maxSeats'] ?? 100) as int;
       final int registeredCount = (eventData['registeredCount'] ?? 0) as int;
-      final int availableSeats = (capacity - registeredCount).clamp(0, capacity);
+      final int availableSeats = (capacity - registeredCount).clamp(
+        0,
+        capacity,
+      );
 
       if (eventData['status'] == EventStatuses.cancelled) {
         throw Exception('Registration for this event is closed.');
       }
 
       DateTime deadline = DateTime.now().add(const Duration(days: 365));
-      final rawDeadline = eventData['registrationDeadline'] ?? eventData['date'];
+      final rawDeadline =
+          eventData['registrationDeadline'] ?? eventData['date'];
       if (rawDeadline is Timestamp) {
         deadline = rawDeadline.toDate();
       }
@@ -601,16 +1076,29 @@ class GamificationService {
 
       // Check event branch & year eligibility
       final List<String> allowedYears =
-          (eventData['allowedYears'] as List?)?.map((e) => e.toString()).toList() ?? [];
+          (eventData['allowedYears'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [];
       final List<String> allowedDepts =
-          (eventData['allowedDepartments'] as List?)?.map((e) => e.toString()).toList() ?? [];
+          (eventData['allowedDepartments'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [];
 
       if (!studentUser.isStaff) {
         if (!AcademicYears.matches(allowedYears, studentUser.year)) {
-          throw Exception('Ineligible: This event is not open to your academic year.');
+          throw Exception(
+            'Ineligible: This event is not open to your academic year.',
+          );
         }
-        if (!AcademicDepartments.matches(allowedDepts, studentUser.department)) {
-          throw Exception('Ineligible: This event is not open to your department.');
+        if (!AcademicDepartments.matches(
+          allowedDepts,
+          studentUser.department,
+        )) {
+          throw Exception(
+            'Ineligible: This event is not open to your department.',
+          );
         }
       }
 
@@ -619,7 +1107,8 @@ class GamificationService {
       final regDoc = await transaction.get(regRef);
       if (regDoc.exists) {
         final status = regDoc.data()?['registrationStatus'] as String? ?? '';
-        if (status == 'confirmed' || status == RegistrationStatuses.registered) {
+        if (status == 'confirmed' ||
+            status == RegistrationStatuses.registered) {
           throw Exception('You are already registered for this event.');
         }
       }
@@ -644,7 +1133,9 @@ class GamificationService {
       final newSpendableCoins = currentGamification.coins - reward.coinCost;
       transaction.set(
         gamificationRef,
-        currentGamification.copyWith(coins: newSpendableCoins, updatedAt: now).toMap(),
+        currentGamification
+            .copyWith(coins: newSpendableCoins, updatedAt: now)
+            .toMap(),
         SetOptions(merge: true),
       );
 
@@ -708,10 +1199,15 @@ class GamificationService {
         redeemedAt: now,
         fulfilledAt: now,
       );
-      transaction.set(_redemptionsCollection.doc(redemptionDocId), redemption.toMap());
+      transaction.set(
+        _redemptionsCollection.doc(redemptionDocId),
+        redemption.toMap(),
+      );
 
       // Write debit ledger transaction
-      final ledgerRef = _rewardHistoryCollection.doc('${redemptionDocId}_ledger');
+      final ledgerRef = _rewardHistoryCollection.doc(
+        '${redemptionDocId}_ledger',
+      );
       final ledgerEntry = CoinTransactionModel(
         id: '${redemptionDocId}_ledger',
         studentId: studentId,
@@ -762,30 +1258,38 @@ class GamificationService {
 
       if (requiresCoinRefund) {
         // REFUND COINS TO STUDENT
-        final gamificationRef = _gamificationCollection.doc(redemption.studentId);
+        final gamificationRef = _gamificationCollection.doc(
+          redemption.studentId,
+        );
         final gamificationDoc = await transaction.get(gamificationRef);
 
         if (gamificationDoc.exists) {
-          final currentGamification = GamificationModel.fromSnapshot(gamificationDoc);
-          final refundedSpendable = currentGamification.coins + redemption.coinCost;
+          final currentGamification = GamificationModel.fromSnapshot(
+            gamificationDoc,
+          );
+          final refundedSpendable =
+              currentGamification.coins + redemption.coinCost;
           transaction.set(
             gamificationRef,
-            currentGamification.copyWith(
-              coins: refundedSpendable,
-              updatedAt: now,
-            ).toMap(),
+            currentGamification
+                .copyWith(coins: refundedSpendable, updatedAt: now)
+                .toMap(),
             SetOptions(merge: true),
           );
 
           // WRITE REFUND LEDGER ENTRY
-          final refundLedgerRef = _rewardHistoryCollection.doc('${redemptionId}_refund');
+          final refundLedgerRef = _rewardHistoryCollection.doc(
+            '${redemptionId}_refund',
+          );
           final refundEntry = CoinTransactionModel(
             id: '${redemptionId}_refund',
             studentId: redemption.studentId,
             amount: redemption.coinCost,
             type: 'redemption_refund',
             title: 'Refund: ${redemption.rewardTitle}',
-            description: reason.isNotEmpty ? reason : 'Redemption refund by administrator',
+            description: reason.isNotEmpty
+                ? reason
+                : 'Redemption refund by administrator',
             refId: redemption.rewardId,
             idempotencyKey: '${redemptionId}_refund',
             createdAt: now,
@@ -811,7 +1315,9 @@ class GamificationService {
       transaction.update(redemptionRef, {
         'status': newStatus,
         'statusReason': reason.isNotEmpty ? reason : redemption.statusReason,
-        'fulfilledAt': newStatus == RedemptionStatuses.fulfilled ? Timestamp.fromDate(now) : null,
+        'fulfilledAt': newStatus == RedemptionStatuses.fulfilled
+            ? Timestamp.fromDate(now)
+            : null,
         'fulfilledByAdminUid': adminUid,
       });
     });
@@ -829,10 +1335,13 @@ class GamificationService {
     required String adminUid,
   }) async {
     if (studentId.isEmpty || coinDelta == 0 || reason.trim().isEmpty) {
-      throw Exception('Student ID, non-zero coin delta, and reason are required.');
+      throw Exception(
+        'Student ID, non-zero coin delta, and reason are required.',
+      );
     }
 
-    final String adjustmentId = 'ADJ-${DateTime.now().millisecondsSinceEpoch}-${studentId.substring(0, min(4, studentId.length))}';
+    final String adjustmentId =
+        'ADJ-${DateTime.now().millisecondsSinceEpoch}-${studentId.substring(0, min(4, studentId.length))}';
 
     await _db.runTransaction((transaction) async {
       final gamificationRef = _gamificationCollection.doc(studentId);
@@ -851,11 +1360,13 @@ class GamificationService {
 
       transaction.set(
         gamificationRef,
-        currentGamification.copyWith(
-          coins: newSpendable,
-          lifetimeCoins: newLifetime,
-          updatedAt: now,
-        ).toMap(),
+        currentGamification
+            .copyWith(
+              coins: newSpendable,
+              lifetimeCoins: newLifetime,
+              updatedAt: now,
+            )
+            .toMap(),
         SetOptions(merge: true),
       );
 
@@ -880,7 +1391,127 @@ class GamificationService {
   // 6. SECURE REFERRALS
   // ==========================================
 
-  /// Registers a referral code when a new student joins
+  /// Authoritatively validates a referral code against stored records.
+  /// Heals legacy users whose code was computed in memory but not yet saved in Firestore.
+  /// Checks for self-referral and previous attribution.
+  Future<ReferralValidationResult> validateReferralCode(
+    String enteredCode, {
+    String? currentUid,
+  }) async {
+    final clean = enteredCode.trim().toUpperCase();
+    if (clean.isEmpty) {
+      return const ReferralValidationResult(
+        status: ReferralValidationStatus.invalidFormat,
+        message: 'Please enter a referral code.',
+      );
+    }
+
+    // 1. Direct authoritative query in gamification collection
+    final query = await _gamificationCollection
+        .where('referralCode', isEqualTo: clean)
+        .limit(1)
+        .get();
+
+    String? referrerUid;
+    String? referrerName;
+
+    if (query.docs.isNotEmpty) {
+      referrerUid = query.docs.first.id;
+    } else {
+      // 2. Safe fallback for legacy users (e.g. CAMPUS-YJRVBC)
+      // Check if code matches standard format CAMPUS-XXXXXX
+      if (clean.startsWith('CAMPUS-')) {
+        final codeSuffix = clean.replaceFirst('CAMPUS-', '');
+        try {
+          final usersSnapshot = await _db.collection('users').get();
+          for (final uDoc in usersSnapshot.docs) {
+            final uidClean = uDoc.id
+                .replaceAll(RegExp(r'[^a-zA-Z0-9]'), '')
+                .toUpperCase();
+            final matchesPrefix =
+                uidClean.startsWith(codeSuffix) ||
+                (codeSuffix.length >= 6 &&
+                    uidClean.length >= 6 &&
+                    uidClean.substring(0, 6) == codeSuffix);
+            if (matchesPrefix) {
+              // Auto-initialize their gamification profile so the code is permanently persisted
+              final initialized = await ensureStudentGamificationProfile(
+                uDoc.id,
+                studentName: uDoc.data()['name'] as String?,
+              );
+              if (initialized.referralCode == clean) {
+                referrerUid = uDoc.id;
+                referrerName = uDoc.data()['name'] as String?;
+                break;
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint('Legacy referral fallback check error: $e');
+        }
+      }
+    }
+
+    if (referrerUid == null) {
+      return ReferralValidationResult(
+        status: ReferralValidationStatus.notFound,
+        message: 'Referral code not found. Please check and try again.',
+        normalizedCode: clean,
+      );
+    }
+
+    // 3. Self-referral check
+    if (currentUid != null &&
+        currentUid.isNotEmpty &&
+        referrerUid == currentUid) {
+      return ReferralValidationResult(
+        status: ReferralValidationStatus.selfReferral,
+        message: 'You cannot use your own referral code.',
+        normalizedCode: clean,
+      );
+    }
+
+    // 4. Check if current student already used a referral code
+    if (currentUid != null && currentUid.isNotEmpty) {
+      final existingAttribution = await _referralsCollection
+          .where('referredUid', isEqualTo: currentUid)
+          .limit(1)
+          .get();
+      if (existingAttribution.docs.isNotEmpty) {
+        return ReferralValidationResult(
+          status: ReferralValidationStatus.alreadyReferred,
+          message: 'You have already applied a referral code.',
+          normalizedCode: clean,
+        );
+      }
+    }
+
+    // 5. Fetch non-sensitive referrer first name if not yet known
+    if (referrerName == null) {
+      try {
+        final uDoc = await _db.collection('users').doc(referrerUid).get();
+        if (uDoc.exists) {
+          final rawName = uDoc.data()?['name'] as String? ?? '';
+          referrerName = rawName.isNotEmpty
+              ? rawName.split(' ').first
+              : 'Student';
+        }
+      } catch (_) {}
+    }
+
+    return ReferralValidationResult(
+      status: ReferralValidationStatus.valid,
+      message:
+          'Valid referral code${referrerName != null ? " from $referrerName" : ""}! Both of you will earn 50 bonus coins on first verified attendance.',
+      referrerUid: referrerUid,
+      referrerName: referrerName,
+      normalizedCode: clean,
+    );
+  }
+
+  /// Registers a validated referral code when a new student joins.
+  /// Stores attribution in referrals collection with 'pending' status.
+  /// Coins are NOT granted immediately; they require verified first attendance.
   Future<bool> registerReferralCode({
     required String newStudentUid,
     required String newStudentName,
@@ -889,50 +1520,70 @@ class GamificationService {
     final cleanCode = enteredReferralCode.trim().toUpperCase();
     if (cleanCode.isEmpty) return false;
 
-    try {
-      // Find referrer by matching referralCode
-      final query = await _gamificationCollection
-          .where('referralCode', isEqualTo: cleanCode)
-          .limit(1)
-          .get();
+    final validation = await validateReferralCode(
+      cleanCode,
+      currentUid: newStudentUid,
+    );
 
-      if (query.docs.isEmpty) return false;
-
-      final referrerUid = query.docs.first.id;
-      if (referrerUid == newStudentUid) {
+    if (validation.status != ReferralValidationStatus.valid ||
+        validation.referrerUid == null) {
+      if (validation.status == ReferralValidationStatus.selfReferral) {
         throw Exception('Self-referrals are not allowed.');
       }
-
-      final referralId = '${referrerUid}_$newStudentUid';
-      final referralRef = _referralsCollection.doc(referralId);
-      final existingDoc = await referralRef.get();
-
-      if (existingDoc.exists) {
-        return false; // Already recorded
+      if (validation.status == ReferralValidationStatus.alreadyReferred) {
+        throw Exception('A referral code has already been applied.');
       }
-
-      final record = ReferralRecordModel(
-        id: referralId,
-        referrerUid: referrerUid,
-        referrerCode: cleanCode,
-        referredUid: newStudentUid,
-        referredName: newStudentName,
-        status: 'pending',
-      );
-
-      await referralRef.set(record.toMap());
-
-      // Link in student's profile
-      await _gamificationCollection.doc(newStudentUid).set({
-        'referredBy': referrerUid,
-        'updatedAt': Timestamp.fromDate(DateTime.now()),
-      }, SetOptions(merge: true));
-
-      return true;
-    } catch (e) {
-      debugPrint('Error registering referral code: $e');
-      rethrow;
+      return false;
     }
+
+    final referrerUid = validation.referrerUid!;
+
+    // Check if newStudentUid already attributed to a referrer
+    final existingReferredQuery = await _referralsCollection
+        .where('referredUid', isEqualTo: newStudentUid)
+        .limit(1)
+        .get();
+
+    if (existingReferredQuery.docs.isNotEmpty) {
+      return false;
+    }
+
+    final referralId = '${referrerUid}_$newStudentUid';
+    final referralRef = _referralsCollection.doc(referralId);
+    final existingDoc = await referralRef.get();
+
+    if (existingDoc.exists) {
+      return true; // Already recorded
+    }
+
+    final record = ReferralRecordModel(
+      id: referralId,
+      referrerUid: referrerUid,
+      referrerCode: cleanCode,
+      referredUid: newStudentUid,
+      referredName: newStudentName,
+      status: 'pending',
+      qualifyingAction: 'first_event_attended',
+      coinsAwarded: 0,
+      createdAt: DateTime.now(),
+    );
+
+    await referralRef.set(record.toMap());
+
+    // Ensure profiles exist for both users
+    await ensureStudentGamificationProfile(referrerUid);
+    await ensureStudentGamificationProfile(
+      newStudentUid,
+      studentName: newStudentName,
+    );
+
+    // Link in student's profile
+    await _gamificationCollection.doc(newStudentUid).set({
+      'referredBy': referrerUid,
+      'updatedAt': Timestamp.fromDate(DateTime.now()),
+    }, SetOptions(merge: true));
+
+    return true;
   }
 
   /// Streams referrals made by a student
@@ -950,52 +1601,108 @@ class GamificationService {
         });
   }
 
-  /// Awards referral coins once upon the referred student's first verified attendance
+  /// Awards referral coins once upon the referred student's first verified attendance.
+  /// Resolves the configured coin award (default 50 for referrer, 50 for referred).
+  /// Verifies referral is pending and writes idempotent ledger records to prevent duplicates.
   Future<void> processReferralQualificationOnFirstAttendance({
     required String referredStudentId,
     required String eventId,
-    int referrerCoins = 50,
-    int referredCoins = 25,
+    int? referrerCoins,
+    int? referredCoins,
   }) async {
     try {
-      final query = await _referralsCollection
-          .where('referredUid', isEqualTo: referredStudentId)
-          .where('status', isEqualTo: 'pending')
-          .limit(1)
+      final int actualReferrerCoins =
+          referrerCoins ?? await getReferralCoinAward();
+      final int actualReferredCoins = referredCoins ?? 50;
+
+      DocumentSnapshot<Map<String, dynamic>>? referralDoc;
+
+      // 1. Direct doc lookup via student profile's referredBy
+      final studentProfileDoc = await _gamificationCollection
+          .doc(referredStudentId)
           .get();
+      if (studentProfileDoc.exists) {
+        final referredBy =
+            (studentProfileDoc.data()?['referredBy'] as String? ?? '').trim();
+        if (referredBy.isNotEmpty) {
+          final directRef = _referralsCollection.doc(
+            '${referredBy}_$referredStudentId',
+          );
+          final directDoc = await directRef.get();
+          if (directDoc.exists &&
+              (directDoc.data()?['status'] as String? ?? '') == 'pending') {
+            referralDoc = directDoc;
+          }
+        }
+      }
 
-      if (query.docs.isEmpty) return;
+      // 2. Fallback query by referredUid
+      if (referralDoc == null) {
+        final query = await _referralsCollection
+            .where('referredUid', isEqualTo: referredStudentId)
+            .where('status', isEqualTo: 'pending')
+            .limit(1)
+            .get();
 
-      final referralDoc = query.docs.first;
-      final referral = ReferralRecordModel.fromSnapshot(referralDoc);
+        if (query.docs.isNotEmpty) {
+          referralDoc = query.docs.first;
+        }
+      }
+
+      if (referralDoc == null || !referralDoc.exists) {
+        debugPrint(
+          'Referral qualification check: No pending referral found for student $referredStudentId',
+        );
+        return;
+      }
+
+      final validReferralDoc = referralDoc;
+      final referral = ReferralRecordModel.fromSnapshot(validReferralDoc);
       final now = DateTime.now();
 
       await _db.runTransaction((transaction) async {
+        // Re-read referral doc inside transaction for strict idempotency
+        final freshRefDoc = await transaction.get(validReferralDoc.reference);
+        if (!freshRefDoc.exists) return;
+        final freshStatus = freshRefDoc.data()?['status'] as String? ?? '';
+        if (freshStatus == 'completed' || freshStatus == 'qualified') {
+          debugPrint(
+            'Referral already completed or not pending: ${referral.id} (status: $freshStatus)',
+          );
+          return;
+        }
+
         // 1. Award coins to referrer
-        final referrerGameRef = _gamificationCollection.doc(referral.referrerUid);
+        final referrerGameRef = _gamificationCollection.doc(
+          referral.referrerUid,
+        );
         final referrerDoc = await transaction.get(referrerGameRef);
         if (referrerDoc.exists) {
           final refGame = GamificationModel.fromSnapshot(referrerDoc);
           transaction.set(
             referrerGameRef,
-            refGame.copyWith(
-              coins: refGame.coins + referrerCoins,
-              lifetimeCoins: refGame.lifetimeCoins + referrerCoins,
-              updatedAt: now,
-            ).toMap(),
+            refGame
+                .copyWith(
+                  coins: refGame.coins + actualReferrerCoins,
+                  lifetimeCoins: refGame.lifetimeCoins + actualReferrerCoins,
+                  updatedAt: now,
+                )
+                .toMap(),
             SetOptions(merge: true),
           );
 
           // Referrer Ledger
-          final refLedger = _rewardHistoryCollection.doc('REF_BONUS_${referral.id}_referrer');
+          final refLedger = _rewardHistoryCollection.doc(
+            'REF_BONUS_${referral.id}_referrer',
+          );
           transaction.set(refLedger, {
             'id': 'REF_BONUS_${referral.id}_referrer',
             'studentId': referral.referrerUid,
-            'amount': referrerCoins,
-            'coinsAwarded': referrerCoins,
+            'amount': actualReferrerCoins,
+            'coinsAwarded': actualReferrerCoins,
             'type': 'referral_bonus',
             'rewardType': 'referral_bonus',
-            'title': 'Referral Reward (+$referrerCoins Coins)',
+            'title': 'Referral Reward (+$actualReferrerCoins Coins)',
             'rewardReason': 'Referral qualified by ${referral.referredName}',
             'refId': referredStudentId,
             'idempotencyKey': 'REF_BONUS_${referral.id}_referrer',
@@ -1010,24 +1717,28 @@ class GamificationService {
           final studGame = GamificationModel.fromSnapshot(studentDoc);
           transaction.set(
             studentGameRef,
-            studGame.copyWith(
-              coins: studGame.coins + referredCoins,
-              lifetimeCoins: studGame.lifetimeCoins + referredCoins,
-              updatedAt: now,
-            ).toMap(),
+            studGame
+                .copyWith(
+                  coins: studGame.coins + actualReferredCoins,
+                  lifetimeCoins: studGame.lifetimeCoins + actualReferredCoins,
+                  updatedAt: now,
+                )
+                .toMap(),
             SetOptions(merge: true),
           );
 
           // Student Ledger
-          final studLedger = _rewardHistoryCollection.doc('REF_BONUS_${referral.id}_student');
+          final studLedger = _rewardHistoryCollection.doc(
+            'REF_BONUS_${referral.id}_student',
+          );
           transaction.set(studLedger, {
             'id': 'REF_BONUS_${referral.id}_student',
             'studentId': referredStudentId,
-            'amount': referredCoins,
-            'coinsAwarded': referredCoins,
+            'amount': actualReferredCoins,
+            'coinsAwarded': actualReferredCoins,
             'type': 'referral_bonus',
             'rewardType': 'referral_bonus',
-            'title': 'Referral Welcome Bonus (+$referredCoins Coins)',
+            'title': 'Referral Welcome Bonus (+$actualReferredCoins Coins)',
             'rewardReason': 'Joined using referral code',
             'refId': referral.referrerUid,
             'idempotencyKey': 'REF_BONUS_${referral.id}_student',
@@ -1035,16 +1746,34 @@ class GamificationService {
           });
         }
 
-        // 3. Mark referral record qualified
-        transaction.update(referralDoc.reference, {
-          'status': 'qualified',
-          'coinsAwarded': referrerCoins,
+        // 3. Mark referral record completed
+        transaction.update(validReferralDoc.reference, {
+          'status': 'completed',
+          'coinsAwarded': actualReferrerCoins,
+          'friendCoinsAwarded': actualReferredCoins,
           'qualifiedAt': Timestamp.fromDate(now),
+          'completedAt': Timestamp.fromDate(now),
+          'eventId': eventId,
         });
       });
+
+      debugPrint(
+        'Referral qualification completed for referred student $referredStudentId -> referrer ${referral.referrerUid} (+$actualReferrerCoins coins, +$actualReferredCoins welcome coins)',
+      );
     } catch (e) {
       debugPrint('Error processing referral qualification: $e');
     }
+  }
+
+  /// Gets referral coin award (configured under rules or default 50)
+  Future<int> getReferralCoinAward() async {
+    try {
+      final doc = await _rulesCollection.doc('referral').get();
+      if (doc.exists) {
+        return (doc.data()?['coinAmount'] ?? 50) as int;
+      }
+    } catch (_) {}
+    return 50;
   }
 
   // ==========================================
@@ -1083,21 +1812,19 @@ class GamificationService {
 
   /// Streams top students by lifetimeCoins (descending) so spending does not drop rank!
   Stream<List<GamificationModel>> streamLeaderboard({int limit = 50}) {
-    return _gamificationCollection
-        .snapshots()
-        .map((snapshot) {
-          final list = snapshot.docs
-              .map((doc) => GamificationModel.fromSnapshot(doc))
-              .toList();
+    return _gamificationCollection.snapshots().map((snapshot) {
+      final list = snapshot.docs
+          .map((doc) => GamificationModel.fromSnapshot(doc))
+          .toList();
 
-          // Stable tie-breaking: lifetimeCoins desc, then totalEventsAttended desc
-          list.sort((a, b) {
-            final cmp = b.lifetimeCoins.compareTo(a.lifetimeCoins);
-            if (cmp != 0) return cmp;
-            return b.totalEventsAttended.compareTo(a.totalEventsAttended);
-          });
+      // Stable tie-breaking: lifetimeCoins desc, then totalEventsAttended desc
+      list.sort((a, b) {
+        final cmp = b.lifetimeCoins.compareTo(a.lifetimeCoins);
+        if (cmp != 0) return cmp;
+        return b.totalEventsAttended.compareTo(a.totalEventsAttended);
+      });
 
-          return list.take(limit).toList();
-        });
+      return list.take(limit).toList();
+    });
   }
 }

@@ -154,17 +154,27 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.card_giftcard, size: 48, color: AppColors.textSecondary),
+                    const Icon(
+                      Icons.card_giftcard,
+                      size: 48,
+                      color: AppColors.textSecondary,
+                    ),
                     const SizedBox(height: 14),
                     const Text(
                       'No Rewards Configured Yet',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 6),
                     const Text(
                       'Tap "Add Reward" below to create your first campus reward.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                     const SizedBox(height: 16),
                     ElevatedButton.icon(
@@ -194,7 +204,9 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
                   color: AppColors.cardWhite,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: r.isEnabled ? AppColors.border : AppColors.border.withValues(alpha: 0.5),
+                    color: r.isEnabled
+                        ? AppColors.border
+                        : AppColors.border.withValues(alpha: 0.5),
                   ),
                 ),
                 child: Row(
@@ -205,10 +217,14 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
                       width: 52,
                       height: 52,
                       decoration: BoxDecoration(
-                        color: r.isEnabled ? AppColors.coralLight : AppColors.background,
+                        color: r.isEnabled
+                            ? AppColors.coralLight
+                            : AppColors.background,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: r.isEnabled ? AppColors.coral : AppColors.border,
+                          color: r.isEnabled
+                              ? AppColors.coral
+                              : AppColors.border,
                         ),
                       ),
                       child: Column(
@@ -217,7 +233,9 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
                           Icon(
                             Icons.monetization_on,
                             size: 16,
-                            color: r.isEnabled ? AppColors.coralDark : AppColors.textSecondary,
+                            color: r.isEnabled
+                                ? AppColors.coralDark
+                                : AppColors.textSecondary,
                           ),
                           const SizedBox(height: 2),
                           Text(
@@ -225,7 +243,9 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 12,
-                              color: r.isEnabled ? AppColors.coralDark : AppColors.textSecondary,
+                              color: r.isEnabled
+                                  ? AppColors.coralDark
+                                  : AppColors.textSecondary,
                             ),
                           ),
                         ],
@@ -241,7 +261,10 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
                           Row(
                             children: [
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
                                   color: AppColors.lavenderLight,
                                   borderRadius: BorderRadius.circular(8),
@@ -260,7 +283,10 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
                                 value: r.isEnabled,
                                 activeThumbColor: AppColors.coral,
                                 onChanged: (val) {
-                                  _gamificationService.toggleRewardStatus(r.id, val);
+                                  _gamificationService.toggleRewardStatus(
+                                    r.id,
+                                    val,
+                                  );
                                 },
                               ),
                             ],
@@ -271,7 +297,9 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 15,
-                              color: r.isEnabled ? AppColors.textMain : AppColors.textSecondary,
+                              color: r.isEnabled
+                                  ? AppColors.textMain
+                                  : AppColors.textSecondary,
                             ),
                           ),
                           if (r.description.isNotEmpty) ...[
@@ -315,10 +343,14 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
                               IconButton(
                                 icon: const Icon(Icons.edit_outlined, size: 18),
                                 color: AppColors.textSecondary,
-                                onPressed: () => _showAddEditRewardDialog(existing: r),
+                                onPressed: () =>
+                                    _showAddEditRewardDialog(existing: r),
                               ),
                               IconButton(
-                                icon: const Icon(Icons.delete_outline, size: 18),
+                                icon: const Icon(
+                                  Icons.delete_outline,
+                                  size: 18,
+                                ),
                                 color: AppColors.pinkDark,
                                 onPressed: () => _confirmDeleteReward(r),
                               ),
@@ -348,35 +380,40 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
-            children: [
-              'All',
-              RedemptionStatuses.pending,
-              RedemptionStatuses.approved,
-              RedemptionStatuses.fulfilled,
-              RedemptionStatuses.rejected,
-              RedemptionStatuses.refunded,
-            ].map((status) {
-              final isSelected = _redemptionStatusFilter == status;
-              return Padding(
-                padding: const EdgeInsets.only(right: 6),
-                child: ChoiceChip(
-                  label: Text(
-                    status.toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: isSelected ? Colors.white : AppColors.textSecondary,
+            children:
+                [
+                  'All',
+                  RedemptionStatuses.pending,
+                  RedemptionStatuses.approved,
+                  RedemptionStatuses.fulfilled,
+                  RedemptionStatuses.rejected,
+                  RedemptionStatuses.refunded,
+                ].map((status) {
+                  final isSelected = _redemptionStatusFilter == status;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: ChoiceChip(
+                      label: Text(
+                        status.toUpperCase(),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: isSelected
+                              ? Colors.white
+                              : AppColors.textSecondary,
+                        ),
+                      ),
+                      selected: isSelected,
+                      selectedColor: AppColors.coral,
+                      backgroundColor: AppColors.cardWhite,
+                      onSelected: (val) {
+                        if (val) {
+                          setState(() => _redemptionStatusFilter = status);
+                        }
+                      },
                     ),
-                  ),
-                  selected: isSelected,
-                  selectedColor: AppColors.coral,
-                  backgroundColor: AppColors.cardWhite,
-                  onSelected: (val) {
-                    if (val) setState(() => _redemptionStatusFilter = status);
-                  },
-                ),
-              );
-            }).toList(),
+                  );
+                }).toList(),
           ),
         ),
 
@@ -427,11 +464,16 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
                         Row(
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
                               decoration: BoxDecoration(
                                 color: statusBg,
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+                                border: Border.all(
+                                  color: statusColor.withValues(alpha: 0.3),
+                                ),
                               ),
                               child: Text(
                                 item.status.toUpperCase(),
@@ -499,19 +541,30 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
                               OutlinedButton(
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: AppColors.pinkDark,
-                                  side: const BorderSide(color: AppColors.pinkDark),
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  side: const BorderSide(
+                                    color: AppColors.pinkDark,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
                                   minimumSize: Size.zero,
                                 ),
                                 onPressed: () => _showRejectRefundDialog(item),
-                                child: const Text('Reject & Refund', style: TextStyle(fontSize: 12)),
+                                child: const Text(
+                                  'Reject & Refund',
+                                  style: TextStyle(fontSize: 12),
+                                ),
                               ),
                               const SizedBox(width: 8),
                               ElevatedButton(
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppColors.mintDark,
                                   foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
                                   minimumSize: Size.zero,
                                 ),
                                 onPressed: () => _updateRedemption(
@@ -519,25 +572,40 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
                                   RedemptionStatuses.fulfilled,
                                   'Fulfilled by admin',
                                 ),
-                                child: const Text('Mark Fulfilled', style: TextStyle(fontSize: 12)),
+                                child: const Text(
+                                  'Mark Fulfilled',
+                                  style: TextStyle(fontSize: 12),
+                                ),
                               ),
-                            ] else if (item.status == RedemptionStatuses.approved) ...[
+                            ] else if (item.status ==
+                                RedemptionStatuses.approved) ...[
                               OutlinedButton(
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: AppColors.pinkDark,
-                                  side: const BorderSide(color: AppColors.pinkDark),
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  side: const BorderSide(
+                                    color: AppColors.pinkDark,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
                                   minimumSize: Size.zero,
                                 ),
                                 onPressed: () => _showRejectRefundDialog(item),
-                                child: const Text('Refund Coins', style: TextStyle(fontSize: 12)),
+                                child: const Text(
+                                  'Refund Coins',
+                                  style: TextStyle(fontSize: 12),
+                                ),
                               ),
                               const SizedBox(width: 8),
                               ElevatedButton(
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppColors.mintDark,
                                   foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
                                   minimumSize: Size.zero,
                                 ),
                                 onPressed: () => _updateRedemption(
@@ -545,7 +613,10 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
                                   RedemptionStatuses.fulfilled,
                                   'Fulfilled by admin',
                                 ),
-                                child: const Text('Mark Fulfilled', style: TextStyle(fontSize: 12)),
+                                child: const Text(
+                                  'Mark Fulfilled',
+                                  style: TextStyle(fontSize: 12),
+                                ),
                               ),
                             ] else ...[
                               Text(
@@ -587,7 +658,8 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
             name: 'Verified Event Attendance',
             activityType: 'attendance',
             coinAmount: 50,
-            description: 'Coins awarded per event check-in via official event QR',
+            description:
+                'Coins awarded per event check-in via official event QR',
           ),
         );
 
@@ -598,7 +670,8 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
             name: 'Verified Peer Referral',
             activityType: 'referral',
             coinAmount: 50,
-            description: 'Coins awarded to referring student on peer first attendance',
+            description:
+                'Coins awarded to referring student on peer first attendance',
           ),
         );
 
@@ -621,11 +694,17 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
               decoration: BoxDecoration(
                 color: AppColors.lavenderLight,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.lavender.withValues(alpha: 0.3)),
+                border: Border.all(
+                  color: AppColors.lavender.withValues(alpha: 0.3),
+                ),
               ),
               child: const Row(
                 children: [
-                  Icon(Icons.info_outline, size: 20, color: AppColors.lavenderDark),
+                  Icon(
+                    Icons.info_outline,
+                    size: 20,
+                    color: AppColors.lavenderDark,
+                  ),
                   SizedBox(width: 10),
                   Expanded(
                     child: Text(
@@ -644,7 +723,8 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
 
             _buildRuleConfigCard(
               title: 'Verified Event Attendance',
-              description: 'Coins automatically credited upon scanning official event QR at the venue',
+              description:
+                  'Coins automatically credited upon scanning official event QR at the venue',
               icon: Icons.qr_code_scanner,
               currentAmount: attendanceRule.coinAmount,
               onSave: (amount) async {
@@ -655,12 +735,15 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
                     name: 'Verified Event Attendance',
                     activityType: 'attendance',
                     coinAmount: amount,
-                    description: 'Coins awarded per event check-in via official event QR',
+                    description:
+                        'Coins awarded per event check-in via official event QR',
                   ),
                 );
                 if (mounted) {
                   messenger.showSnackBar(
-                    const SnackBar(content: Text('Attendance earning rule updated!')),
+                    const SnackBar(
+                      content: Text('Attendance earning rule updated!'),
+                    ),
                   );
                 }
               },
@@ -670,7 +753,8 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
 
             _buildRuleConfigCard(
               title: 'Verified Student Referral',
-              description: 'Awarded to referring student when referred student attends their first event',
+              description:
+                  'Awarded to referrer (and matched for invited classmate) when classmate attends their first event',
               icon: Icons.people_outline,
               currentAmount: referralRule.coinAmount,
               onSave: (amount) async {
@@ -681,12 +765,15 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
                     name: 'Verified Peer Referral',
                     activityType: 'referral',
                     coinAmount: amount,
-                    description: 'Coins awarded to referring student on peer first attendance',
+                    description:
+                        'Coins awarded to referrer and matching welcome bonus to peer on first attendance',
                   ),
                 );
                 if (mounted) {
                   messenger.showSnackBar(
-                    const SnackBar(content: Text('Referral earning rule updated!')),
+                    const SnackBar(
+                      content: Text('Referral earning rule updated!'),
+                    ),
                   );
                 }
               },
@@ -696,7 +783,8 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
 
             _buildRuleConfigCard(
               title: '3-Day Streak Milestone Bonus',
-              description: 'One-time bonus credited when a student maintains a 3-consecutive-day streak',
+              description:
+                  'One-time bonus credited when a student maintains a 3-consecutive-day streak',
               icon: Icons.local_fire_department_outlined,
               currentAmount: streakRule.coinAmount,
               onSave: (amount) async {
@@ -707,12 +795,15 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
                     name: '3-Day Streak Milestone',
                     activityType: 'streak_milestone',
                     coinAmount: amount,
-                    description: 'Bonus coins awarded on 3 consecutive days streak',
+                    description:
+                        'Bonus coins awarded on 3 consecutive days streak',
                   ),
                 );
                 if (mounted) {
                   messenger.showSnackBar(
-                    const SnackBar(content: Text('Streak milestone rule updated!')),
+                    const SnackBar(
+                      content: Text('Streak milestone rule updated!'),
+                    ),
                   );
                 }
               },
@@ -756,7 +847,10 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
                 ),
               ),
             ],
@@ -764,7 +858,10 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
           const SizedBox(height: 8),
           Text(
             description,
-            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
           ),
           const SizedBox(height: 12),
           Row(
@@ -832,7 +929,10 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
                 const SizedBox(height: 6),
                 const Text(
                   'Adjust a student\'s spendable coin balance. All adjustments require an auditable reason and record the acting admin UID.',
-                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 TextField(
@@ -846,7 +946,9 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
                 const SizedBox(height: 12),
                 TextField(
                   controller: _coinDeltaController,
-                  keyboardType: const TextInputType.numberWithOptions(signed: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    signed: true,
+                  ),
                   decoration: const InputDecoration(
                     labelText: 'Coin Amount (+ to award, - to deduct)',
                     hintText: 'e.g. +50 or -30',
@@ -859,7 +961,8 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
                   maxLines: 2,
                   decoration: const InputDecoration(
                     labelText: 'Mandatory Adjustment Reason',
-                    hintText: 'e.g. Event volunteering bonus, Quiz competition prize',
+                    hintText:
+                        'e.g. Event volunteering bonus, Quiz competition prize',
                     border: OutlineInputBorder(),
                   ),
                 ),
@@ -925,13 +1028,18 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
                 separatorBuilder: (_, _) => const SizedBox(height: 8),
                 itemBuilder: (context, index) {
                   final data = docs[index].data();
-                  final amount = (data['amount'] ?? data['coinsAwarded'] ?? 0) as int;
-                  final title = data['title'] ?? data['rewardReason'] ?? 'Activity';
+                  final amount =
+                      (data['amount'] ?? data['coinsAwarded'] ?? 0) as int;
+                  final title =
+                      data['title'] ?? data['rewardReason'] ?? 'Activity';
                   final studentId = data['studentId'] ?? '';
                   final type = data['type'] ?? data['rewardType'] ?? '';
 
                   return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.cardWhite,
                       borderRadius: BorderRadius.circular(12),
@@ -940,9 +1048,13 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
                     child: Row(
                       children: [
                         Icon(
-                          amount >= 0 ? Icons.add_circle_outline : Icons.remove_circle_outline,
+                          amount >= 0
+                              ? Icons.add_circle_outline
+                              : Icons.remove_circle_outline,
                           size: 18,
-                          color: amount >= 0 ? AppColors.mintDark : AppColors.coralDark,
+                          color: amount >= 0
+                              ? AppColors.mintDark
+                              : AppColors.coralDark,
                         ),
                         const SizedBox(width: 10),
                         Expanded(
@@ -951,11 +1063,17 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
                             children: [
                               Text(
                                 title,
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
                               ),
                               Text(
                                 'Student: $studentId • Type: $type',
-                                style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.textSecondary,
+                                ),
                               ),
                             ],
                           ),
@@ -965,7 +1083,9 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
-                            color: amount >= 0 ? AppColors.mintDark : AppColors.coralDark,
+                            color: amount >= 0
+                                ? AppColors.mintDark
+                                : AppColors.coralDark,
                           ),
                         ),
                       ],
@@ -990,16 +1110,18 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
     final reason = _reasonController.text.trim();
 
     if (studentId.isEmpty || deltaStr.isEmpty || reason.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill all fields.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please fill all fields.')));
       return;
     }
 
     final delta = int.tryParse(deltaStr);
     if (delta == null || delta == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a valid non-zero integer coin delta.')),
+        const SnackBar(
+          content: Text('Enter a valid non-zero integer coin delta.'),
+        ),
       );
       return;
     }
@@ -1021,7 +1143,9 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Coin adjustment of $delta successfully recorded for $studentId!'),
+            content: Text(
+              'Coin adjustment of $delta successfully recorded for $studentId!',
+            ),
             backgroundColor: AppColors.mintDark,
           ),
         );
@@ -1029,7 +1153,10 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Adjustment failed: $e'), backgroundColor: AppColors.pinkDark),
+          SnackBar(
+            content: Text('Adjustment failed: $e'),
+            backgroundColor: AppColors.pinkDark,
+          ),
         );
       }
     } finally {
@@ -1037,7 +1164,11 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
     }
   }
 
-  Future<void> _updateRedemption(String redemptionId, String status, String note) async {
+  Future<void> _updateRedemption(
+    String redemptionId,
+    String status,
+    String note,
+  ) async {
     try {
       await _gamificationService.adminUpdateRedemptionStatus(
         redemptionId: redemptionId,
@@ -1053,7 +1184,10 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Action failed: $e'), backgroundColor: AppColors.pinkDark),
+          SnackBar(
+            content: Text('Action failed: $e'),
+            backgroundColor: AppColors.pinkDark,
+          ),
         );
       }
     }
@@ -1118,11 +1252,19 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete Reward'),
-        content: Text('Are you sure you want to delete "${r.title}" from the catalogue?'),
+        content: Text(
+          'Are you sure you want to delete "${r.title}" from the catalogue?',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.pinkDark, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.pinkDark,
+              foregroundColor: Colors.white,
+            ),
             onPressed: () async {
               Navigator.pop(ctx);
               await _gamificationService.deleteReward(r.id);
@@ -1137,9 +1279,15 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
   void _showAddEditRewardDialog({RewardModel? existing}) {
     final titleCtrl = TextEditingController(text: existing?.title ?? '');
     final descCtrl = TextEditingController(text: existing?.description ?? '');
-    final costCtrl = TextEditingController(text: existing != null ? existing.coinCost.toString() : '100');
-    final stockCtrl = TextEditingController(text: existing != null ? existing.availableStock.toString() : '-1');
-    final termsCtrl = TextEditingController(text: existing?.termsAndConditions ?? '');
+    final costCtrl = TextEditingController(
+      text: existing != null ? existing.coinCost.toString() : '100',
+    );
+    final stockCtrl = TextEditingController(
+      text: existing != null ? existing.availableStock.toString() : '-1',
+    );
+    final termsCtrl = TextEditingController(
+      text: existing?.termsAndConditions ?? '',
+    );
     String category = existing?.category ?? RewardCategories.collegePerk;
     String fulfilment = existing?.fulfilmentType ?? 'manual_approval';
     bool isEnabled = existing?.isEnabled ?? true;
@@ -1150,20 +1298,26 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
         return StatefulBuilder(
           builder: (dialogCtx, setDialogState) {
             return AlertDialog(
-              title: Text(existing == null ? 'Add Campus Reward' : 'Edit Reward'),
+              title: Text(
+                existing == null ? 'Add Campus Reward' : 'Edit Reward',
+              ),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     TextField(
                       controller: titleCtrl,
-                      decoration: const InputDecoration(labelText: 'Reward Title *'),
+                      decoration: const InputDecoration(
+                        labelText: 'Reward Title *',
+                      ),
                     ),
                     const SizedBox(height: 10),
                     TextField(
                       controller: descCtrl,
                       maxLines: 2,
-                      decoration: const InputDecoration(labelText: 'Description'),
+                      decoration: const InputDecoration(
+                        labelText: 'Description',
+                      ),
                     ),
                     const SizedBox(height: 10),
                     DropdownButtonFormField<String>(
@@ -1186,7 +1340,9 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
                           child: TextField(
                             controller: costCtrl,
                             keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(labelText: 'Coin Cost *'),
+                            decoration: const InputDecoration(
+                              labelText: 'Coin Cost *',
+                            ),
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -1204,7 +1360,9 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
                     const SizedBox(height: 10),
                     DropdownButtonFormField<String>(
                       initialValue: fulfilment,
-                      decoration: const InputDecoration(labelText: 'Fulfilment Method'),
+                      decoration: const InputDecoration(
+                        labelText: 'Fulfilment Method',
+                      ),
                       items: const [
                         DropdownMenuItem(
                           value: 'manual_approval',
@@ -1224,7 +1382,8 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
                       controller: termsCtrl,
                       decoration: const InputDecoration(
                         labelText: 'Terms & Conditions',
-                        hintText: 'e.g. Valid during current academic term only',
+                        hintText:
+                            'e.g. Valid during current academic term only',
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -1235,7 +1394,8 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
                         Switch(
                           value: isEnabled,
                           activeThumbColor: AppColors.coral,
-                          onChanged: (val) => setDialogState(() => isEnabled = val),
+                          onChanged: (val) =>
+                              setDialogState(() => isEnabled = val),
                         ),
                       ],
                     ),
@@ -1295,42 +1455,50 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
       RewardModel(
         id: 'free_event_pass',
         title: 'Free Event Registration Pass',
-        description: '100% registration fee waiver for any eligible paid technical or cultural event.',
+        description:
+            '100% registration fee waiver for any eligible paid technical or cultural event.',
         category: RewardCategories.freeEvent,
         coinCost: 150,
         availableStock: -1,
         fulfilmentType: 'automatic',
-        termsAndConditions: 'Applies automatically at registration checkout for eligible events.',
+        termsAndConditions:
+            'Applies automatically at registration checkout for eligible events.',
       ),
       RewardModel(
         id: 'priority_certificate',
         title: 'Priority Certificate Endorsement',
-        description: 'Verified attendance certificate with official faculty endorsement distinction.',
+        description:
+            'Verified attendance certificate with official faculty endorsement distinction.',
         category: RewardCategories.certificate,
         coinCost: 200,
         availableStock: -1,
         fulfilmentType: 'manual_approval',
-        termsAndConditions: 'Requires verified attendance at the associated workshop or event.',
+        termsAndConditions:
+            'Requires verified attendance at the associated workshop or event.',
       ),
       RewardModel(
         id: 'library_extension',
         title: 'Library Extended Borrowing Pass',
-        description: 'Extend book borrowing period by 14 days and borrow up to 2 additional books.',
+        description:
+            'Extend book borrowing period by 14 days and borrow up to 2 additional books.',
         category: RewardCategories.collegePerk,
         coinCost: 100,
         availableStock: 50,
         fulfilmentType: 'manual_approval',
-        termsAndConditions: 'Present reference code at the Central College Library desk.',
+        termsAndConditions:
+            'Present reference code at the Central College Library desk.',
       ),
       RewardModel(
         id: 'canteen_snack_pass',
         title: 'Campus Canteen Refreshment Voucher',
-        description: 'College-sponsored refreshment voucher redeemable at the main college cafeteria.',
+        description:
+            'College-sponsored refreshment voucher redeemable at the main college cafeteria.',
         category: RewardCategories.collegePerk,
         coinCost: 80,
         availableStock: 100,
         fulfilmentType: 'manual_approval',
-        termsAndConditions: 'One voucher per student per week. Valid during working campus hours.',
+        termsAndConditions:
+            'One voucher per student per week. Valid during working campus hours.',
       ),
     ];
 
@@ -1340,7 +1508,9 @@ class _AdminGamificationScreenState extends State<AdminGamificationScreen>
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Standard campus rewards added to catalogue!')),
+        const SnackBar(
+          content: Text('Standard campus rewards added to catalogue!'),
+        ),
       );
     }
   }

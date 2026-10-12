@@ -3,6 +3,29 @@ import '../utils/date_formatter.dart';
 
 enum BadgeCategory { attendance, streak, explorer, elite }
 
+/// Exactly five selectable streak symbols per requirements
+class StreakSymbols {
+  static const String fire = '🔥';
+  static const String lightning = '⚡';
+  static const String star = '🌟';
+  static const String diamond = '💎';
+  static const String blossom = '🌸';
+
+  static const List<String> all = [fire, lightning, star, diamond, blossom];
+
+  static const Map<String, String> labels = {
+    fire: 'Fire',
+    lightning: 'Lightning',
+    star: 'Star',
+    diamond: 'Diamond',
+    blossom: 'Blossom',
+  };
+
+  static String getLabel(String symbol) => labels[symbol] ?? 'Fire';
+  static String labelFor(String symbol) => getLabel(symbol);
+  static bool isValid(String symbol) => all.contains(symbol);
+}
+
 class BadgeDefinition {
   final String id;
   final String name;
@@ -11,6 +34,7 @@ class BadgeDefinition {
   final int requiredEvents;
   final int requiredStreakDays;
   final bool isStreakBadge;
+  final bool isDailyStreakBadge;
   final BadgeCategory category;
 
   const BadgeDefinition({
@@ -21,6 +45,7 @@ class BadgeDefinition {
     this.requiredEvents = 0,
     this.requiredStreakDays = 0,
     this.isStreakBadge = false,
+    this.isDailyStreakBadge = false,
     this.category = BadgeCategory.attendance,
   });
 
@@ -59,6 +84,42 @@ class BadgeDefinition {
       category: BadgeCategory.streak,
     ),
     BadgeDefinition(
+      id: 'daily_streak_3',
+      name: '3-Day Pioneer',
+      emoji: '🔥',
+      description: 'Open the app 3 consecutive days.',
+      requiredStreakDays: 3,
+      isDailyStreakBadge: true,
+      category: BadgeCategory.streak,
+    ),
+    BadgeDefinition(
+      id: 'daily_streak_7',
+      name: '7-Day Spark',
+      emoji: '⚡',
+      description: 'Open the app 7 consecutive days.',
+      requiredStreakDays: 7,
+      isDailyStreakBadge: true,
+      category: BadgeCategory.streak,
+    ),
+    BadgeDefinition(
+      id: 'daily_streak_14',
+      name: '14-Day Momentum',
+      emoji: '🌟',
+      description: 'Open the app 14 consecutive days.',
+      requiredStreakDays: 14,
+      isDailyStreakBadge: true,
+      category: BadgeCategory.streak,
+    ),
+    BadgeDefinition(
+      id: 'daily_streak_30',
+      name: '30-Day Legend',
+      emoji: '👑',
+      description: 'Open the app 30 consecutive days.',
+      requiredStreakDays: 30,
+      isDailyStreakBadge: true,
+      category: BadgeCategory.elite,
+    ),
+    BadgeDefinition(
       id: 'elite_participant',
       name: 'Elite Participant',
       emoji: '💎',
@@ -80,12 +141,19 @@ class BadgeDefinition {
 class GamificationModel {
   final String studentId;
   final int coins; // spendable coin balance
-  final int lifetimeCoins; // lifetime coins earned (used for rankings and achievements)
+  final int
+  lifetimeCoins; // lifetime coins earned (used for rankings and achievements)
   final int totalEventsAttended;
   final int currentStreak;
   final int longestStreak;
   final String lastAttendedDate; // YYYY-MM-DD
   final List<String> distinctAttendedDates;
+  final int dailyStreak; // app-open consecutive day streak
+  final int longestDailyStreak; // best app-open streak
+  final String lastDailyOpenDate; // YYYY-MM-DD
+  final List<String> distinctDailyOpenDates;
+  final String lastDailyPollDate; // YYYY-MM-DD of latest poll vote
+  final String streakSymbol; // 🔥, ⚡, 🌟, 💎, 🌸
   final Map<String, DateTime> unlockedBadges; // badgeId -> unlockedAt
   final String referralCode;
   final String referredBy;
@@ -100,25 +168,39 @@ class GamificationModel {
     this.longestStreak = 0,
     this.lastAttendedDate = '',
     List<String>? distinctAttendedDates,
+    this.dailyStreak = 0,
+    this.longestDailyStreak = 0,
+    this.lastDailyOpenDate = '',
+    List<String>? distinctDailyOpenDates,
+    this.lastDailyPollDate = '',
+    this.streakSymbol = StreakSymbols.fire,
     Map<String, DateTime>? unlockedBadges,
     String? referralCode,
     this.referredBy = '',
     DateTime? updatedAt,
-  })  : lifetimeCoins = lifetimeCoins ??
-            (coins > totalEventsAttended * 50 ? coins : totalEventsAttended * 50),
-        distinctAttendedDates = distinctAttendedDates ?? const [],
-        unlockedBadges = unlockedBadges ?? const {},
-        referralCode = referralCode ??
-            (studentId.isNotEmpty
-                ? 'CAMPUS-${studentId.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toUpperCase().padRight(6, 'X').substring(0, 6)}'
-                : ''),
-        updatedAt = updatedAt ?? DateTime.now();
+  }) : lifetimeCoins =
+           lifetimeCoins ??
+           (coins > totalEventsAttended * 50
+               ? coins
+               : totalEventsAttended * 50),
+       distinctAttendedDates = distinctAttendedDates ?? const [],
+       distinctDailyOpenDates = distinctDailyOpenDates ?? const [],
+       unlockedBadges = unlockedBadges ?? const {},
+       referralCode =
+           referralCode ??
+           (studentId.isNotEmpty
+               ? 'CAMPUS-${studentId.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toUpperCase().padRight(6, 'X').substring(0, 6)}'
+               : ''),
+       updatedAt = updatedAt ?? DateTime.now();
 
   bool isBadgeUnlocked(String badgeId) => unlockedBadges.containsKey(badgeId);
 
   DateTime? getBadgeUnlockedDate(String badgeId) => unlockedBadges[badgeId];
 
   int get totalBadgesUnlocked => unlockedBadges.length;
+
+  bool isDailyOpenClaimedForDate(String dateKey) =>
+      lastDailyOpenDate == dateKey || distinctDailyOpenDates.contains(dateKey);
 
   /// Determines next milestone badge to show on dashboard
   BadgeDefinition? get nextBadge {
@@ -133,7 +215,13 @@ class GamificationModel {
   /// Calculates progress (0.0 to 1.0) towards a given badge
   double getBadgeProgress(BadgeDefinition badge) {
     if (isBadgeUnlocked(badge.id)) return 1.0;
-    if (badge.isStreakBadge) {
+    if (badge.isDailyStreakBadge) {
+      if (badge.requiredStreakDays <= 0) return 1.0;
+      final best = dailyStreak > longestDailyStreak
+          ? dailyStreak
+          : longestDailyStreak;
+      return (best / badge.requiredStreakDays).clamp(0.0, 1.0);
+    } else if (badge.isStreakBadge) {
       if (badge.requiredStreakDays <= 0) return 1.0;
       final best = currentStreak > longestStreak
           ? currentStreak
@@ -147,7 +235,12 @@ class GamificationModel {
 
   String getBadgeProgressText(BadgeDefinition badge) {
     if (isBadgeUnlocked(badge.id)) return 'Completed';
-    if (badge.isStreakBadge) {
+    if (badge.isDailyStreakBadge) {
+      final best = dailyStreak > longestDailyStreak
+          ? dailyStreak
+          : longestDailyStreak;
+      return '$best / ${badge.requiredStreakDays} days';
+    } else if (badge.isStreakBadge) {
       final best = currentStreak > longestStreak
           ? currentStreak
           : longestStreak;
@@ -176,15 +269,28 @@ class GamificationModel {
       }
     }
 
+    final List<String> dailyDates = [];
+    if (map['distinctDailyOpenDates'] is List) {
+      for (final d in (map['distinctDailyOpenDates'] as List)) {
+        dailyDates.add(d.toString());
+      }
+    }
+
     final int spendable = (map['coins'] ?? 0) as int;
     final int attended = (map['totalEventsAttended'] ?? 0) as int;
-    final int fallbackLifetime = spendable > attended * 50 ? spendable : attended * 50;
+    final int fallbackLifetime = spendable > attended * 50
+        ? spendable
+        : attended * 50;
     final int lifetime = (map['lifetimeCoins'] ?? fallbackLifetime) as int;
 
     String refCode = map['referralCode'] as String? ?? '';
     if (refCode.isEmpty && studentId.isNotEmpty) {
-      final clean = studentId.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toUpperCase();
-      refCode = clean.length >= 6 ? 'CAMPUS-${clean.substring(0, 6)}' : 'CAMPUS-${clean.padRight(6, 'X')}';
+      final clean = studentId
+          .replaceAll(RegExp(r'[^a-zA-Z0-9]'), '')
+          .toUpperCase();
+      refCode = clean.length >= 6
+          ? 'CAMPUS-${clean.substring(0, 6)}'
+          : 'CAMPUS-${clean.padRight(6, 'X')}';
     }
 
     return GamificationModel(
@@ -196,6 +302,16 @@ class GamificationModel {
       longestStreak: (map['longestStreak'] ?? 0) as int,
       lastAttendedDate: map['lastAttendedDate'] as String? ?? '',
       distinctAttendedDates: dates,
+      dailyStreak: (map['dailyStreak'] ?? 0) as int,
+      longestDailyStreak: (map['longestDailyStreak'] ?? 0) as int,
+      lastDailyOpenDate: map['lastDailyOpenDate'] as String? ?? '',
+      distinctDailyOpenDates: dailyDates,
+      lastDailyPollDate: map['lastDailyPollDate'] as String? ?? '',
+      streakSymbol:
+          (map['streakSymbol'] is String &&
+              StreakSymbols.isValid(map['streakSymbol'] as String))
+          ? (map['streakSymbol'] as String)
+          : StreakSymbols.fire,
       unlockedBadges: badges,
       referralCode: refCode,
       referredBy: map['referredBy'] as String? ?? '',
@@ -224,6 +340,12 @@ class GamificationModel {
       'longestStreak': longestStreak,
       'lastAttendedDate': lastAttendedDate,
       'distinctAttendedDates': distinctAttendedDates,
+      'dailyStreak': dailyStreak,
+      'longestDailyStreak': longestDailyStreak,
+      'lastDailyOpenDate': lastDailyOpenDate,
+      'distinctDailyOpenDates': distinctDailyOpenDates,
+      'lastDailyPollDate': lastDailyPollDate,
+      'streakSymbol': streakSymbol,
       'unlockedBadges': badgesMap,
       'referralCode': referralCode,
       'referredBy': referredBy,
@@ -240,6 +362,12 @@ class GamificationModel {
     int? longestStreak,
     String? lastAttendedDate,
     List<String>? distinctAttendedDates,
+    int? dailyStreak,
+    int? longestDailyStreak,
+    String? lastDailyOpenDate,
+    List<String>? distinctDailyOpenDates,
+    String? lastDailyPollDate,
+    String? streakSymbol,
     Map<String, DateTime>? unlockedBadges,
     String? referralCode,
     String? referredBy,
@@ -255,6 +383,13 @@ class GamificationModel {
       lastAttendedDate: lastAttendedDate ?? this.lastAttendedDate,
       distinctAttendedDates:
           distinctAttendedDates ?? this.distinctAttendedDates,
+      dailyStreak: dailyStreak ?? this.dailyStreak,
+      longestDailyStreak: longestDailyStreak ?? this.longestDailyStreak,
+      lastDailyOpenDate: lastDailyOpenDate ?? this.lastDailyOpenDate,
+      distinctDailyOpenDates:
+          distinctDailyOpenDates ?? this.distinctDailyOpenDates,
+      lastDailyPollDate: lastDailyPollDate ?? this.lastDailyPollDate,
+      streakSymbol: streakSymbol ?? this.streakSymbol,
       unlockedBadges: unlockedBadges ?? this.unlockedBadges,
       referralCode: referralCode ?? this.referralCode,
       referredBy: referredBy ?? this.referredBy,

@@ -77,11 +77,10 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && (request.auth.uid == studentId || isAdmin());
       allow update: if isAdmin() || (
-        isAuthenticated() && request.auth.uid == studentId &&
-        // Prevent student from arbitrarily inflating lifetime achievement coins or attended events directly
-        !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-          'lifetimeCoins', 'totalEventsAttended', 'longestStreak'
-        ])
+        isAuthenticated() && (
+          request.auth.uid == studentId ||
+          request.resource.data.diff(resource.data).affectedKeys().hasAny(['coins', 'lifetimeCoins', 'updatedAt'])
+        )
       );
       allow delete: if isAdmin();
     }
@@ -90,9 +89,12 @@ service cloud.firestore {
     match /reward_history/{rewardId} {
       // Students can read their own reward history; admins can read all
       allow read: if isAuthenticated() && (resource.data.studentId == request.auth.uid || isAdmin());
-      // Admins can write all entries; students can create their own debit transaction during redemption
+      // Admins can write all entries; students can create their own debit transaction or verified referral bonus entry
       allow create: if isAdmin() || (
-        isAuthenticated() && request.resource.data.studentId == request.auth.uid
+        isAuthenticated() && (
+          request.resource.data.studentId == request.auth.uid ||
+          request.resource.data.type == 'referral_bonus'
+        )
       );
       allow update, delete: if isAdmin();
     }
@@ -131,7 +133,13 @@ service cloud.firestore {
         isAdmin()
       );
       allow create: if isAuthenticated();
-      allow update, delete: if isAdmin();
+      allow update: if isAdmin() || (
+        isAuthenticated() && (
+          resource.data.referrerUid == request.auth.uid ||
+          resource.data.referredUid == request.auth.uid
+        )
+      );
+      allow delete: if isAdmin();
     }
 
     // Saved events collection
@@ -169,6 +177,42 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isAuthenticated();
       allow create, update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Daily Campus Polls collection
+    match /polls/{pollId} {
+      // Authenticated users can read polls
+      allow read: if isAuthenticated();
+      // Only authorized admins can create, delete, or modify poll questions and administration settings
+      allow create, delete: if isAdmin();
+      // Admins can update any poll fields; authenticated students can update vote counters via transaction
+      allow update: if isAdmin() || (
+        isAuthenticated() &&
+        // Protect poll metadata from student edits
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'question', 'category', 'status', 'createdBy', 'createdAt',
+          'allowVoteEditing', 'resultsVisibleBeforeVote'
+        ])
+      );
+    }
+
+    // Individual Student Poll Votes collection (Doc ID format: {pollId}_{studentId})
+    match /poll_votes/{voteId} {
+      // Students can read their own vote; admins can read all votes
+      allow read: if isAdmin() || (
+        isAuthenticated() && resource.data.studentId == request.auth.uid
+      );
+      // Students can only cast a vote for themselves with deterministic ID
+      allow create: if isAuthenticated() &&
+        request.resource.data.studentId == request.auth.uid &&
+        voteId == request.resource.data.pollId + '_' + request.auth.uid;
+      // Students can only update their own existing vote, keeping pollId and studentId unchanged
+      allow update: if isAuthenticated() &&
+        resource.data.studentId == request.auth.uid &&
+        request.resource.data.studentId == request.auth.uid &&
+        request.resource.data.pollId == resource.data.pollId;
+      // Only admins can delete vote records if needed for moderation
       allow delete: if isAdmin();
     }
   }

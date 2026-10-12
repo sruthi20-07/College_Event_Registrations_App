@@ -148,21 +148,32 @@ class RegistrationService {
 
           // Check eligibility criteria
           final List<String> allowedYears =
-              (data['allowedYears'] as List?)?.map((e) => e.toString()).toList() ?? [];
+              (data['allowedYears'] as List?)
+                  ?.map((e) => e.toString())
+                  .toList() ??
+              [];
           final List<String> allowedDepts =
-              (data['allowedDepartments'] as List?)?.map((e) => e.toString()).toList() ?? [];
+              (data['allowedDepartments'] as List?)
+                  ?.map((e) => e.toString())
+                  .toList() ??
+              [];
 
           final userData = userDoc.exists ? (userDoc.data() ?? {}) : {};
           final userRole = (userData['role'] as String? ?? '').toLowerCase();
-          final bool isStaff = userRole == 'admin' ||
+          final bool isStaff =
+              userRole == 'admin' ||
               userRole == 'faculty' ||
               userRole == 'coordinator';
 
           if (!isStaff) {
-            final String studentYear = (userData['year'] as String? ?? registration.year).trim();
-            final String studentDept = (userData['department'] as String? ?? registration.department).trim();
+            final String studentYear =
+                (userData['year'] as String? ?? registration.year).trim();
+            final String studentDept =
+                (userData['department'] as String? ?? registration.department)
+                    .trim();
 
-            final bool checkYears = allowedYears.isNotEmpty &&
+            final bool checkYears =
+                allowedYears.isNotEmpty &&
                 !allowedYears.contains('All') &&
                 !allowedYears.contains(AcademicYears.all);
 
@@ -179,7 +190,8 @@ class RegistrationService {
               }
             }
 
-            final bool checkDepts = allowedDepts.isNotEmpty &&
+            final bool checkDepts =
+                allowedDepts.isNotEmpty &&
                 !allowedDepts.contains('All') &&
                 !allowedDepts.contains(AcademicDepartments.all);
 
@@ -237,16 +249,16 @@ class RegistrationService {
             ticketToken: secureToken,
             registrationStatus: 'confirmed',
           );
-          _whatsAppService.queueAutomatedNotification(
-            registration: confirmedRegistration,
-          ).catchError((err) {
-            debugPrint('Async WhatsApp notification queue warning: $err');
-            return WhatsAppApiResult(
-              success: false,
-              status: 'failed',
-              message: err.toString(),
-            );
-          });
+          _whatsAppService
+              .queueAutomatedNotification(registration: confirmedRegistration)
+              .catchError((err) {
+                debugPrint('Async WhatsApp notification queue warning: $err');
+                return WhatsAppApiResult(
+                  success: false,
+                  status: 'failed',
+                  message: err.toString(),
+                );
+              });
         } catch (e) {
           debugPrint('Safe catch on automated WhatsApp trigger: $e');
         }
@@ -533,18 +545,19 @@ class RegistrationService {
               rewardCalculation.updatedGamification.toMap(),
               SetOptions(merge: true),
             );
-            transaction.set(
-              rewardRef,
-              rewardCalculation.rewardRecord.toMap(),
-            );
+            transaction.set(rewardRef, rewardCalculation.rewardRecord.toMap());
           }
         });
 
         if (verifiedStudentId.isNotEmpty) {
-          _gamificationService.processReferralQualificationOnFirstAttendance(
-            referredStudentId: verifiedStudentId,
-            eventId: verifiedEventId,
-          ).catchError((_) {});
+          _gamificationService
+              .processReferralQualificationOnFirstAttendance(
+                referredStudentId: verifiedStudentId,
+                eventId: verifiedEventId,
+              )
+              .catchError((e) {
+                debugPrint('Notice: referral qualification check: $e');
+              });
         }
       } else {
         await _db.runTransaction((transaction) async {
@@ -873,18 +886,19 @@ class RegistrationService {
             rewardCalculation.updatedGamification.toMap(),
             SetOptions(merge: true),
           );
-          transaction.set(
-            rewardRef,
-            rewardCalculation.rewardRecord.toMap(),
-          );
+          transaction.set(rewardRef, rewardCalculation.rewardRecord.toMap());
         }
       });
 
       if (currentReg.studentId.isNotEmpty) {
-        _gamificationService.processReferralQualificationOnFirstAttendance(
-          referredStudentId: currentReg.studentId,
-          eventId: currentReg.eventId,
-        ).catchError((_) {});
+        _gamificationService
+            .processReferralQualificationOnFirstAttendance(
+              referredStudentId: currentReg.studentId,
+              eventId: currentReg.eventId,
+            )
+            .catchError((e) {
+              debugPrint('Notice: referral qualification check: $e');
+            });
       }
 
       final updatedReg = currentReg.copyWith(
@@ -1026,9 +1040,9 @@ class RegistrationService {
         .limit(1)
         .snapshots()
         .map((query) {
-      if (query.docs.isEmpty) return null;
-      return AttendanceSessionModel.fromSnapshot(query.docs.first);
-    });
+          if (query.docs.isEmpty) return null;
+          return AttendanceSessionModel.fromSnapshot(query.docs.first);
+        });
   }
 
   /// Atomically validates event QR token and marks student attendance (Student Action)
@@ -1077,8 +1091,8 @@ class RegistrationService {
 
     // 4. Resolve registration doc ID
     final deterministicDocId = '${payload.eventId}_$verifiedStudentId';
-    DocumentReference<Map<String, dynamic>> regDocRef =
-        _registrationsCollection.doc(deterministicDocId);
+    DocumentReference<Map<String, dynamic>> regDocRef = _registrationsCollection
+        .doc(deterministicDocId);
 
     // If deterministic doc does not exist, look up existing registration ID for this student and event
     final directCheck = await regDocRef.get();
@@ -1104,8 +1118,9 @@ class RegistrationService {
         // --- READ PHASE: ALL READS MUST PRECEDE ALL WRITES ---
         DocumentSnapshot<Map<String, dynamic>>? sessionDoc;
         if (payload.sessionId.isNotEmpty) {
-          final sessionRef =
-              _attendanceSessionsCollection.doc(payload.sessionId);
+          final sessionRef = _attendanceSessionsCollection.doc(
+            payload.sessionId,
+          );
           sessionDoc = await transaction.get(sessionRef);
         }
 
@@ -1119,12 +1134,14 @@ class RegistrationService {
 
         final String idempotencyRewardId =
             '${verifiedStudentId}_${payload.eventId}';
-        final rewardRef =
-            _db.collection('reward_history').doc(idempotencyRewardId);
+        final rewardRef = _db
+            .collection('reward_history')
+            .doc(idempotencyRewardId);
         final rewardDoc = await transaction.get(rewardRef);
 
-        final gamificationRef =
-            _db.collection('gamification').doc(verifiedStudentId);
+        final gamificationRef = _db
+            .collection('gamification')
+            .doc(verifiedStudentId);
         final gamificationDoc = await transaction.get(gamificationRef);
 
         // --- VALIDATION PHASE ---
@@ -1199,10 +1216,9 @@ class RegistrationService {
             [];
 
         final userData = userDoc.exists ? (userDoc.data() ?? {}) : {};
-        final studentYear =
-            (userData['year'] ?? currentReg.year).toString();
-        final studentDept =
-            (userData['department'] ?? currentReg.department).toString();
+        final studentYear = (userData['year'] ?? currentReg.year).toString();
+        final studentDept = (userData['department'] ?? currentReg.department)
+            .toString();
 
         if (allowedYears.isNotEmpty &&
             studentYear.isNotEmpty &&
@@ -1291,10 +1307,7 @@ class RegistrationService {
             rewardCalculation.updatedGamification.toMap(),
             SetOptions(merge: true),
           );
-          transaction.set(
-            rewardRef,
-            rewardCalculation.rewardRecord.toMap(),
-          );
+          transaction.set(rewardRef, rewardCalculation.rewardRecord.toMap());
         }
 
         finalReg = currentReg.copyWith(
@@ -1305,10 +1318,14 @@ class RegistrationService {
       });
 
       if (verifiedStudentId.isNotEmpty) {
-        _gamificationService.processReferralQualificationOnFirstAttendance(
-          referredStudentId: verifiedStudentId,
-          eventId: payload.eventId,
-        ).catchError((_) {});
+        _gamificationService
+            .processReferralQualificationOnFirstAttendance(
+              referredStudentId: verifiedStudentId,
+              eventId: payload.eventId,
+            )
+            .catchError((e) {
+              debugPrint('Notice: referral qualification check: $e');
+            });
       }
 
       return AttendanceScanResult(
@@ -1386,5 +1403,3 @@ class RegistrationService {
     }
   }
 }
-
-

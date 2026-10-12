@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../services/auth_service.dart';
+import '../../services/gamification_service.dart';
 import '../../utils/constants.dart';
 
 class SignupScreen extends StatefulWidget {
@@ -13,12 +14,14 @@ class SignupScreen extends StatefulWidget {
 class _SignupScreenState extends State<SignupScreen> {
   final _formKey = GlobalKey<FormState>();
   final AuthService _authService = AuthService();
+  final GamificationService _gamificationService = GamificationService();
 
   final _nameController = TextEditingController();
   final _studentIdController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _referralCodeController = TextEditingController();
 
   String _department = 'Information Technology';
   String _year = '3rd Year';
@@ -27,6 +30,12 @@ class _SignupScreenState extends State<SignupScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
 
+  // Referral validation state
+  bool _isValidatingReferral = false;
+  bool _isReferralValid = false;
+  String? _validatedReferralCode;
+  String? _referralFeedbackMessage;
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -34,12 +43,88 @@ class _SignupScreenState extends State<SignupScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _referralCodeController.dispose();
     super.dispose();
+  }
+
+  Future<void> _validateReferral() async {
+    final rawCode = _referralCodeController.text.trim();
+    if (rawCode.isEmpty) {
+      setState(() {
+        _isReferralValid = false;
+        _validatedReferralCode = null;
+        _referralFeedbackMessage = null;
+      });
+      return;
+    }
+
+    setState(() {
+      _isValidatingReferral = true;
+      _referralFeedbackMessage = null;
+    });
+
+    try {
+      final res = await _gamificationService.validateReferralCode(rawCode);
+      if (!mounted) return;
+      setState(() {
+        _isValidatingReferral = false;
+        _isReferralValid = res.isValid;
+        _validatedReferralCode = res.isValid ? res.normalizedCode : null;
+        _referralFeedbackMessage = res.message;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isValidatingReferral = false;
+        _isReferralValid = false;
+        _referralFeedbackMessage = 'Unable to validate code. Please try again.';
+      });
+    }
+  }
+
+  void _clearReferral() {
+    _referralCodeController.clear();
+    setState(() {
+      _isReferralValid = false;
+      _validatedReferralCode = null;
+      _referralFeedbackMessage = null;
+    });
   }
 
   Future<void> _handleSignup() async {
     if (_isLoading) return;
     if (!_formKey.currentState!.validate()) return;
+
+    // If student typed a referral code but didn't click Validate, validate it now
+    String? referralCodeToApply;
+    final enteredRef = _referralCodeController.text.trim();
+    if (enteredRef.isNotEmpty) {
+      if (!_isReferralValid || _validatedReferralCode == null) {
+        setState(() => _isLoading = true);
+        final check = await _gamificationService.validateReferralCode(
+          enteredRef,
+        );
+        if (!check.isValid) {
+          setState(() {
+            _isLoading = false;
+            _isReferralValid = false;
+            _referralFeedbackMessage = check.message;
+          });
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(check.message),
+                backgroundColor: AppColors.pinkDark,
+              ),
+            );
+          }
+          return;
+        }
+        referralCodeToApply = check.normalizedCode;
+      } else {
+        referralCodeToApply = _validatedReferralCode;
+      }
+    }
 
     setState(() {
       _isLoading = true;
@@ -54,6 +139,7 @@ class _SignupScreenState extends State<SignupScreen> {
         department: _department,
         year: _year,
         role: UserRoles.student,
+        referralCode: referralCodeToApply,
       );
 
       if (!mounted) return;
@@ -66,7 +152,10 @@ class _SignupScreenState extends State<SignupScreen> {
               SizedBox(width: 10),
               Text(
                 'Account created successfully!',
-                style: TextStyle(color: AppColors.primaryDark, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: AppColors.primaryDark,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),
@@ -87,12 +176,18 @@ class _SignupScreenState extends State<SignupScreen> {
         SnackBar(
           content: Row(
             children: [
-              const Icon(Icons.error_outline_rounded, color: AppColors.errorDark),
+              const Icon(
+                Icons.error_outline_rounded,
+                color: AppColors.errorDark,
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   errorMessage,
-                  style: const TextStyle(color: AppColors.errorDark, fontWeight: FontWeight.w500),
+                  style: const TextStyle(
+                    color: AppColors.errorDark,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ],
@@ -118,9 +213,7 @@ class _SignupScreenState extends State<SignupScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('Create Account'),
-      ),
+      appBar: AppBar(title: const Text('Create Account')),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -141,7 +234,10 @@ class _SignupScreenState extends State<SignupScreen> {
                   const SizedBox(height: 6),
                   const Text(
                     'Fill in your student details to create your account',
-                    style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
 
                   const SizedBox(height: 22),
@@ -324,7 +420,9 @@ class _SignupScreenState extends State<SignupScreen> {
                             decoration: InputDecoration(
                               labelText: 'Password',
                               hintText: 'Minimum 6 characters',
-                              prefixIcon: const Icon(Icons.lock_outline_rounded),
+                              prefixIcon: const Icon(
+                                Icons.lock_outline_rounded,
+                              ),
                               suffixIcon: IconButton(
                                 icon: Icon(
                                   _obscurePassword
@@ -360,7 +458,9 @@ class _SignupScreenState extends State<SignupScreen> {
                             },
                             decoration: InputDecoration(
                               labelText: 'Confirm Password',
-                              prefixIcon: const Icon(Icons.lock_outline_rounded),
+                              prefixIcon: const Icon(
+                                Icons.lock_outline_rounded,
+                              ),
                               suffixIcon: IconButton(
                                 icon: Icon(
                                   _obscureConfirmPassword
@@ -370,10 +470,195 @@ class _SignupScreenState extends State<SignupScreen> {
                                 ),
                                 onPressed: () {
                                   setState(() {
-                                    _obscureConfirmPassword = !_obscureConfirmPassword;
+                                    _obscureConfirmPassword =
+                                        !_obscureConfirmPassword;
                                   });
                                 },
                               ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 18),
+
+                          // REFERRAL CODE INPUT (OPTIONAL)
+                          Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: AppColors.background,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: _isReferralValid
+                                    ? AppColors.mintDark
+                                    : AppColors.border,
+                                width: _isReferralValid ? 1.5 : 1.0,
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.card_giftcard_rounded,
+                                      size: 18,
+                                      color: AppColors.coralDark,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    const Text(
+                                      'Have a referral code? (Optional)',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.textPrimary,
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    if (_referralCodeController.text.isNotEmpty)
+                                      GestureDetector(
+                                        onTap: _clearReferral,
+                                        child: const Text(
+                                          'Remove',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.pinkDark,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                const Text(
+                                  'Enter a classmate\'s referral code. Both of you earn 50 bonus coins when you verify attendance at your first event!',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.textSecondary,
+                                    height: 1.3,
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: TextField(
+                                        controller: _referralCodeController,
+                                        textCapitalization:
+                                            TextCapitalization.characters,
+                                        textInputAction: TextInputAction.done,
+                                        enabled: !_isLoading,
+                                        onChanged: (_) {
+                                          if (_isReferralValid ||
+                                              _referralFeedbackMessage !=
+                                                  null) {
+                                            setState(() {
+                                              _isReferralValid = false;
+                                              _validatedReferralCode = null;
+                                              _referralFeedbackMessage = null;
+                                            });
+                                          }
+                                        },
+                                        decoration: InputDecoration(
+                                          hintText: 'e.g. CAMPUS-ABC123',
+                                          isDense: true,
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                                horizontal: 12,
+                                                vertical: 12,
+                                              ),
+                                          prefixIcon: const Icon(
+                                            Icons.tag_rounded,
+                                            size: 18,
+                                            color: AppColors.textSecondary,
+                                          ),
+                                          suffixIcon: _isReferralValid
+                                              ? const Icon(
+                                                  Icons.check_circle_rounded,
+                                                  color: AppColors.mintDark,
+                                                  size: 20,
+                                                )
+                                              : null,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    SizedBox(
+                                      height: 44,
+                                      child: OutlinedButton(
+                                        style: OutlinedButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 14,
+                                          ),
+                                          foregroundColor: AppColors.coralDark,
+                                          side: const BorderSide(
+                                            color: AppColors.coral,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                          ),
+                                        ),
+                                        onPressed:
+                                            (_isLoading ||
+                                                _isValidatingReferral)
+                                            ? null
+                                            : _validateReferral,
+                                        child: _isValidatingReferral
+                                            ? const SizedBox(
+                                                width: 16,
+                                                height: 16,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                      color:
+                                                          AppColors.coralDark,
+                                                    ),
+                                              )
+                                            : Text(
+                                                _isReferralValid
+                                                    ? 'Applied'
+                                                    : 'Apply',
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (_referralFeedbackMessage != null) ...[
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Icon(
+                                        _isReferralValid
+                                            ? Icons.check_circle_outline_rounded
+                                            : Icons.error_outline_rounded,
+                                        size: 14,
+                                        color: _isReferralValid
+                                            ? AppColors.mintDark
+                                            : AppColors.pinkDark,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: Text(
+                                          _referralFeedbackMessage!,
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w500,
+                                            color: _isReferralValid
+                                                ? AppColors.mintDark
+                                                : AppColors.pinkDark,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ],
                             ),
                           ),
 
@@ -413,7 +698,10 @@ class _SignupScreenState extends State<SignupScreen> {
                     children: [
                       const Text(
                         'Already have an account? ',
-                        style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 14,
+                        ),
                       ),
                       GestureDetector(
                         onTap: () => Navigator.pop(context),

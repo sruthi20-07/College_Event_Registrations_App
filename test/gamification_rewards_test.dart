@@ -8,122 +8,143 @@ import 'package:college_event_app/utils/constants.dart';
 
 void main() {
   group('Campus Gamification & Central Coin System Tests', () {
-    test('1. Verified attendance check-in awards configured coins and updates spendable & lifetime balance', () {
-      final initialGamification = GamificationModel(
-        studentId: 'student_123',
-        coins: 100,
-        lifetimeCoins: 100,
-        totalEventsAttended: 2,
-        currentStreak: 1,
-        longestStreak: 1,
-        lastAttendedDate: '2026-10-10',
-      );
+    test(
+      '1. Verified attendance check-in awards configured coins and updates spendable & lifetime balance',
+      () {
+        final initialGamification = GamificationModel(
+          studentId: 'student_123',
+          coins: 100,
+          lifetimeCoins: 100,
+          totalEventsAttended: 2,
+          currentStreak: 1,
+          longestStreak: 1,
+          lastAttendedDate: '2026-10-10',
+        );
 
-      final attendanceDate = DateTime(2026, 10, 11, 10, 30);
-      final result = GamificationService.computeReward(
-        currentGamification: initialGamification,
-        studentId: 'student_123',
-        eventId: 'event_456',
-        eventTitle: 'AI Workshop',
-        attendedAt: attendanceDate,
-        coinAward: 50,
-      );
+        final attendanceDate = DateTime(2026, 10, 11, 10, 30);
+        final result = GamificationService.computeReward(
+          currentGamification: initialGamification,
+          studentId: 'student_123',
+          eventId: 'event_456',
+          eventTitle: 'AI Workshop',
+          attendedAt: attendanceDate,
+          coinAward: 50,
+        );
 
-      final updated = result.updatedGamification;
-      final reward = result.rewardRecord;
+        final updated = result.updatedGamification;
+        final reward = result.rewardRecord;
 
-      expect(updated.coins, equals(150));
-      expect(updated.lifetimeCoins, equals(150));
-      expect(updated.totalEventsAttended, equals(3));
-      expect(updated.currentStreak, equals(2));
-      expect(updated.longestStreak, equals(2));
-      expect(reward.coinsAwarded, equals(50));
-      expect(reward.id, equals('student_123_event_456'));
-    });
+        expect(updated.coins, equals(150));
+        expect(updated.lifetimeCoins, equals(150));
+        expect(updated.totalEventsAttended, equals(3));
+        expect(updated.currentStreak, equals(2));
+        expect(updated.longestStreak, equals(2));
+        expect(reward.coinsAwarded, equals(50));
+        expect(reward.id, equals('student_123_event_456'));
+      },
+    );
 
-    test('2. Streak handles same-day multiple events without incrementing streak twice', () {
-      final initialGamification = GamificationModel(
-        studentId: 'student_123',
-        coins: 50,
-        totalEventsAttended: 1,
-        currentStreak: 1,
-        longestStreak: 1,
-        lastAttendedDate: '2026-10-11',
-      );
+    test(
+      '2. Streak handles same-day multiple events without incrementing streak twice',
+      () {
+        final initialGamification = GamificationModel(
+          studentId: 'student_123',
+          coins: 50,
+          totalEventsAttended: 1,
+          currentStreak: 1,
+          longestStreak: 1,
+          lastAttendedDate: '2026-10-11',
+        );
 
-      final secondEventDate = DateTime(2026, 10, 11, 14, 0);
-      final result = GamificationService.computeReward(
-        currentGamification: initialGamification,
-        studentId: 'student_123',
-        eventId: 'event_789',
-        eventTitle: 'Evening Hackathon',
-        attendedAt: secondEventDate,
-      );
+        final secondEventDate = DateTime(2026, 10, 11, 14, 0);
+        final result = GamificationService.computeReward(
+          currentGamification: initialGamification,
+          studentId: 'student_123',
+          eventId: 'event_789',
+          eventTitle: 'Evening Hackathon',
+          attendedAt: secondEventDate,
+        );
 
-      final updated = result.updatedGamification;
-      expect(updated.currentStreak, equals(1)); // Same calendar day -> streak remains 1
-      expect(updated.totalEventsAttended, equals(2));
-      expect(updated.coins, equals(100));
-    });
+        final updated = result.updatedGamification;
+        expect(
+          updated.currentStreak,
+          equals(1),
+        ); // Same calendar day -> streak remains 1
+        expect(updated.totalEventsAttended, equals(2));
+        expect(updated.coins, equals(100));
+      },
+    );
 
-    test('3. Missed day resets current streak to 1 while preserving longest streak', () {
-      final initialGamification = GamificationModel(
-        studentId: 'student_123',
-        coins: 150,
-        totalEventsAttended: 3,
-        currentStreak: 3,
-        longestStreak: 3,
-        lastAttendedDate: '2026-10-05',
-      );
+    test(
+      '3. Missed day resets current streak to 1 while preserving longest streak',
+      () {
+        final initialGamification = GamificationModel(
+          studentId: 'student_123',
+          coins: 150,
+          totalEventsAttended: 3,
+          currentStreak: 3,
+          longestStreak: 3,
+          lastAttendedDate: '2026-10-05',
+        );
 
-      final newAttendanceDate = DateTime(2026, 10, 11, 10, 0); // 6 days later
-      final result = GamificationService.computeReward(
-        currentGamification: initialGamification,
-        studentId: 'student_123',
-        eventId: 'event_999',
-        eventTitle: 'Robotics Seminar',
-        attendedAt: newAttendanceDate,
-      );
+        final newAttendanceDate = DateTime(2026, 10, 11, 10, 0); // 6 days later
+        final result = GamificationService.computeReward(
+          currentGamification: initialGamification,
+          studentId: 'student_123',
+          eventId: 'event_999',
+          eventTitle: 'Robotics Seminar',
+          attendedAt: newAttendanceDate,
+        );
 
-      final updated = result.updatedGamification;
-      expect(updated.currentStreak, equals(1)); // Reset after gap
-      expect(updated.longestStreak, equals(3)); // Historical best preserved
-      expect(updated.totalEventsAttended, equals(4));
-    });
+        final updated = result.updatedGamification;
+        expect(updated.currentStreak, equals(1)); // Reset after gap
+        expect(updated.longestStreak, equals(3)); // Historical best preserved
+        expect(updated.totalEventsAttended, equals(4));
+      },
+    );
 
-    test('4. Spending coins does NOT reduce lifetime achievement points or rankings', () {
-      final gamification = GamificationModel(
-        studentId: 'student_123',
-        coins: 200, // spendable
-        lifetimeCoins: 350, // total earned
-        totalEventsAttended: 7,
-      );
+    test(
+      '4. Spending coins does NOT reduce lifetime achievement points or rankings',
+      () {
+        final gamification = GamificationModel(
+          studentId: 'student_123',
+          coins: 200, // spendable
+          lifetimeCoins: 350, // total earned
+          totalEventsAttended: 7,
+        );
 
-      // Student redeems a 150 coin reward
-      final spendAmount = 150;
-      final afterRedeem = gamification.copyWith(
-        coins: gamification.coins - spendAmount,
-        // lifetimeCoins is NOT modified
-      );
+        // Student redeems a 150 coin reward
+        final spendAmount = 150;
+        final afterRedeem = gamification.copyWith(
+          coins: gamification.coins - spendAmount,
+          // lifetimeCoins is NOT modified
+        );
 
-      expect(afterRedeem.coins, equals(50)); // Spendable decreased
-      expect(afterRedeem.lifetimeCoins, equals(350)); // Lifetime intact
-    });
+        expect(afterRedeem.coins, equals(50)); // Spendable decreased
+        expect(afterRedeem.lifetimeCoins, equals(350)); // Lifetime intact
+      },
+    );
 
-    test('5. Backward compatibility: missing lifetimeCoins safely defaults to max(coins, events * 50)', () {
-      final legacyDocData = {
-        'coins': 120,
-        'totalEventsAttended': 3,
-        'currentStreak': 2,
-        'longestStreak': 2,
-        // 'lifetimeCoins' is absent in legacy record
-      };
+    test(
+      '5. Backward compatibility: missing lifetimeCoins safely defaults to max(coins, events * 50)',
+      () {
+        final legacyDocData = {
+          'coins': 120,
+          'totalEventsAttended': 3,
+          'currentStreak': 2,
+          'longestStreak': 2,
+          // 'lifetimeCoins' is absent in legacy record
+        };
 
-      final parsed = GamificationModel.fromMap(legacyDocData, 'student_legacy');
-      expect(parsed.coins, equals(120));
-      expect(parsed.lifetimeCoins, equals(150)); // 3 * 50 = 150 > 120
-      expect(parsed.referralCode, isNotEmpty);
-    });
+        final parsed = GamificationModel.fromMap(
+          legacyDocData,
+          'student_legacy',
+        );
+        expect(parsed.coins, equals(120));
+        expect(parsed.lifetimeCoins, equals(150)); // 3 * 50 = 150 > 120
+        expect(parsed.referralCode, isNotEmpty);
+      },
+    );
 
     test('6. RewardModel correctly validates stock and expiry status', () {
       final activeReward = RewardModel(
@@ -151,52 +172,64 @@ void main() {
       expect(expiredReward.isCurrentlyAvailable, isFalse);
     });
 
-    test('7. CoinTransactionModel ledger serialization preserves credits and debits', () {
-      final credit = CoinTransactionModel(
-        id: 'tx_credit',
-        studentId: 'student_123',
-        amount: 50,
-        type: 'attendance_verified',
-        title: 'Verified Attendance (+50)',
-      );
-      expect(credit.isCredit, isTrue);
-      expect(credit.isDebit, isFalse);
+    test(
+      '7. CoinTransactionModel ledger serialization preserves credits and debits',
+      () {
+        final credit = CoinTransactionModel(
+          id: 'tx_credit',
+          studentId: 'student_123',
+          amount: 50,
+          type: 'attendance_verified',
+          title: 'Verified Attendance (+50)',
+        );
+        expect(credit.isCredit, isTrue);
+        expect(credit.isDebit, isFalse);
 
-      final debit = CoinTransactionModel(
-        id: 'tx_debit',
-        studentId: 'student_123',
-        amount: -150,
-        type: 'reward_redemption',
-        title: 'Redeemed Free Pass',
-      );
-      expect(debit.isDebit, isTrue);
-      expect(debit.isCredit, isFalse);
+        final debit = CoinTransactionModel(
+          id: 'tx_debit',
+          studentId: 'student_123',
+          amount: -150,
+          type: 'reward_redemption',
+          title: 'Redeemed Free Pass',
+        );
+        expect(debit.isDebit, isTrue);
+        expect(debit.isCredit, isFalse);
 
-      final serialized = debit.toMap();
-      final reconstructed = CoinTransactionModel.fromMap(serialized, debit.id);
-      expect(reconstructed.amount, equals(-150));
-      expect(reconstructed.type, equals('reward_redemption'));
-    });
+        final serialized = debit.toMap();
+        final reconstructed = CoinTransactionModel.fromMap(
+          serialized,
+          debit.id,
+        );
+        expect(reconstructed.amount, equals(-150));
+        expect(reconstructed.type, equals('reward_redemption'));
+      },
+    );
 
-    test('8. GamificationRuleModel correctly deserializes and supplies fallbacks', () {
-      final ruleMap = {
-        'name': 'Verified Event Attendance',
-        'activityType': 'attendance',
-        'coinAmount': 60,
-        'isEnabled': true,
-      };
+    test(
+      '8. GamificationRuleModel correctly deserializes and supplies fallbacks',
+      () {
+        final ruleMap = {
+          'name': 'Verified Event Attendance',
+          'activityType': 'attendance',
+          'coinAmount': 60,
+          'isEnabled': true,
+        };
 
-      final rule = GamificationRuleModel.fromMap(ruleMap, 'attendance');
-      expect(rule.coinAmount, equals(60));
-      expect(rule.isEnabled, isTrue);
-    });
+        final rule = GamificationRuleModel.fromMap(ruleMap, 'attendance');
+        expect(rule.coinAmount, equals(60));
+        expect(rule.isEnabled, isTrue);
+      },
+    );
 
-    test('9. Duplicate attendance check-in idempotency key is deterministic', () {
-      final key1 = '${"std_001"}_${"evt_100"}';
-      final key2 = '${"std_001"}_${"evt_100"}';
-      expect(key1, equals(key2));
-      expect(key1, equals('std_001_evt_100'));
-    });
+    test(
+      '9. Duplicate attendance check-in idempotency key is deterministic',
+      () {
+        final key1 = '${"std_001"}_${"evt_100"}';
+        final key2 = '${"std_001"}_${"evt_100"}';
+        expect(key1, equals(key2));
+        expect(key1, equals('std_001_evt_100'));
+      },
+    );
 
     test('10. Insufficient balance leaves coin balance unmodified', () {
       final initialBalance = 80;
@@ -214,256 +247,486 @@ void main() {
       expect(balance, equals(80));
     });
 
-    test('11. Successful redemption records valid debit ledger and preserves lifetime achievement coins', () {
-      final gamification = GamificationModel(
-        studentId: 'std_456',
-        coins: 300,
-        lifetimeCoins: 500,
-        totalEventsAttended: 10,
-      );
-      final cost = 120;
+    test(
+      '11. Successful redemption records valid debit ledger and preserves lifetime achievement coins',
+      () {
+        final gamification = GamificationModel(
+          studentId: 'std_456',
+          coins: 300,
+          lifetimeCoins: 500,
+          totalEventsAttended: 10,
+        );
+        final cost = 120;
 
-      final updatedGamification = gamification.copyWith(
-        coins: gamification.coins - cost,
-      );
+        final updatedGamification = gamification.copyWith(
+          coins: gamification.coins - cost,
+        );
 
-      final debitTx = CoinTransactionModel(
-        id: 'RED-123-ledger',
-        studentId: 'std_456',
-        amount: -cost,
-        type: 'reward_redemption',
-        title: 'Redeemed Perk',
-        description: 'Spent $cost coins',
-      );
+        final debitTx = CoinTransactionModel(
+          id: 'RED-123-ledger',
+          studentId: 'std_456',
+          amount: -cost,
+          type: 'reward_redemption',
+          title: 'Redeemed Perk',
+          description: 'Spent $cost coins',
+        );
 
-      expect(updatedGamification.coins, equals(180));
-      expect(updatedGamification.lifetimeCoins, equals(500));
-      expect(debitTx.isDebit, isTrue);
-      expect(debitTx.amount, equals(-120));
+        expect(updatedGamification.coins, equals(180));
+        expect(updatedGamification.lifetimeCoins, equals(500));
+        expect(debitTx.isDebit, isTrue);
+        expect(debitTx.amount, equals(-120));
+      },
+    );
+
+    test(
+      '12. Reward availability checks reject disabled, out of stock, and expired rewards',
+      () {
+        final baseReward = RewardModel(
+          id: 'r_test',
+          title: 'Campus Hoodie',
+          description: 'Official merch',
+          category: RewardCategories.collegePerk,
+          coinCost: 200,
+          availableStock: 10,
+          isEnabled: true,
+        );
+        expect(baseReward.isCurrentlyAvailable, isTrue);
+
+        final disabled = baseReward.copyWith(isEnabled: false);
+        expect(disabled.isCurrentlyAvailable, isFalse);
+
+        final outOfStock = baseReward.copyWith(availableStock: 0);
+        expect(outOfStock.isCurrentlyAvailable, isFalse);
+        expect(outOfStock.isOutOfStock, isTrue);
+
+        final expired = baseReward.copyWith(
+          expiryDate: DateTime.now().subtract(const Duration(days: 1)),
+        );
+        expect(expired.isCurrentlyAvailable, isFalse);
+        expect(expired.isExpired, isTrue);
+      },
+    );
+
+    test(
+      '13. Reward eligibility checks enforce academic year and department restrictions',
+      () {
+        final reward = RewardModel(
+          id: 'r_spec',
+          title: 'Final Year Project Grant',
+          description: 'For 4th year CSE students only',
+          category: RewardCategories.custom,
+          coinCost: 500,
+          eligibilityYears: [AcademicYears.year4],
+          eligibilityDepartments: [AcademicDepartments.cse],
+        );
+
+        final userCSE4 = UserModel(
+          uid: 'u1',
+          email: 'u1@test.com',
+          name: 'CSE Final Year',
+          rollNumber: 'R1',
+          role: 'student',
+          year: AcademicYears.year4,
+          department: AcademicDepartments.cse,
+        );
+
+        final userMech2 = UserModel(
+          uid: 'u2',
+          email: 'u2@test.com',
+          name: 'Mech 2nd Year',
+          rollNumber: 'R2',
+          role: 'student',
+          year: AcademicYears.year2,
+          department: AcademicDepartments.mech,
+        );
+
+        expect(
+          AcademicYears.matches(reward.eligibilityYears, userCSE4.year),
+          isTrue,
+        );
+        expect(
+          AcademicDepartments.matches(
+            reward.eligibilityDepartments,
+            userCSE4.department,
+          ),
+          isTrue,
+        );
+
+        expect(
+          AcademicYears.matches(reward.eligibilityYears, userMech2.year),
+          isFalse,
+        );
+        expect(
+          AcademicDepartments.matches(
+            reward.eligibilityDepartments,
+            userMech2.department,
+          ),
+          isFalse,
+        );
+      },
+    );
+
+    test(
+      '14. Free Event Registration validates capacity and deadline before granting pass',
+      () {
+        final now = DateTime.now();
+        final fullEvent = EventModel(
+          id: 'evt_full',
+          title: 'AI Summit',
+          description: 'Annual summit',
+          category: 'Workshop',
+          date: now.add(const Duration(days: 5)),
+          startTime: '10:00 AM',
+          endTime: '12:00 PM',
+          venue: 'Main Auditorium',
+          organizer: 'CSE Dept',
+          maxSeats: 100,
+          availableSeats: 0,
+          registrationFee: 0,
+          registrationDeadline: now.add(const Duration(days: 4)),
+        );
+        expect(fullEvent.isFull, isTrue);
+        expect(fullEvent.availableSeats, equals(0));
+
+        final expiredEvent = EventModel(
+          id: 'evt_expired',
+          title: 'Past Hackathon',
+          description: 'Past event',
+          category: 'Hackathon',
+          date: now.subtract(const Duration(days: 2)),
+          startTime: '10:00 AM',
+          endTime: '12:00 PM',
+          registrationDeadline: now.subtract(const Duration(days: 3)),
+          venue: 'Lab 1',
+          organizer: 'IT Dept',
+          maxSeats: 50,
+          availableSeats: 30,
+          registrationFee: 0,
+        );
+        expect(expiredEvent.isDeadlinePassed, isTrue);
+
+        final openEvent = EventModel(
+          id: 'evt_open',
+          title: 'Tech Fest',
+          description: 'Open event',
+          category: 'Fest',
+          date: now.add(const Duration(days: 10)),
+          startTime: '09:00 AM',
+          endTime: '05:00 PM',
+          venue: 'Auditorium 2',
+          organizer: 'College',
+          maxSeats: 150,
+          availableSeats: 110,
+          registrationFee: 0,
+          registrationDeadline: now.add(const Duration(days: 9)),
+        );
+        expect(openEvent.isFull, isFalse);
+        expect(openEvent.isDeadlinePassed, isFalse);
+        expect(openEvent.availableSeats, equals(110));
+      },
+    );
+
+    test(
+      '15. Referral logic rejects self-referrals and identifies qualified status',
+      () {
+        final studentUid = 'std_abc';
+        final referrerUid = 'std_abc';
+        expect(studentUid == referrerUid, isTrue);
+
+        final referralRecord = ReferralRecordModel(
+          id: 'referrer_std123',
+          referrerUid: 'ref_999',
+          referrerCode: 'CAMPUS-REF999',
+          referredUid: 'std_new',
+          referredName: 'New Student',
+          status: 'pending',
+        );
+        expect(referralRecord.status, equals('pending'));
+
+        final qualifiedRecord = referralRecord.copyWith(
+          status: 'qualified',
+          coinsAwarded: 50,
+          qualifiedAt: DateTime.now(),
+        );
+        expect(qualifiedRecord.status, equals('qualified'));
+        expect(qualifiedRecord.coinsAwarded, equals(50));
+      },
+    );
+
+    test(
+      '16. Milestone badges unlock sequentially on attendance milestones',
+      () {
+        var game = GamificationModel(studentId: 'std_badges');
+
+        // 1 event
+        var res = GamificationService.computeReward(
+          currentGamification: game,
+          studentId: 'std_badges',
+          eventId: 'e1',
+          eventTitle: 'Event 1',
+          attendedAt: DateTime(2026, 10, 1),
+        );
+        game = res.updatedGamification;
+        expect(game.isBadgeUnlocked('first_step'), isTrue);
+        expect(game.isBadgeUnlocked('event_explorer'), isFalse);
+
+        // Fast forward to 5 events
+        game = game.copyWith(totalEventsAttended: 4);
+        res = GamificationService.computeReward(
+          currentGamification: game,
+          studentId: 'std_badges',
+          eventId: 'e5',
+          eventTitle: 'Event 5',
+          attendedAt: DateTime(2026, 10, 5),
+        );
+        game = res.updatedGamification;
+        expect(game.isBadgeUnlocked('event_explorer'), isTrue);
+
+        // Fast forward to 10 events
+        game = game.copyWith(totalEventsAttended: 9);
+        res = GamificationService.computeReward(
+          currentGamification: game,
+          studentId: 'std_badges',
+          eventId: 'e10',
+          eventTitle: 'Event 10',
+          attendedAt: DateTime(2026, 10, 10),
+        );
+        game = res.updatedGamification;
+        expect(game.isBadgeUnlocked('campus_champion'), isTrue);
+
+        // 3-day consecutive streak unlocks consistency_star
+        game = game.copyWith(currentStreak: 2, lastAttendedDate: '2026-10-10');
+        res = GamificationService.computeReward(
+          currentGamification: game,
+          studentId: 'std_badges',
+          eventId: 'e11',
+          eventTitle: 'Event 11',
+          attendedAt: DateTime(2026, 10, 11),
+        );
+        game = res.updatedGamification;
+        expect(game.currentStreak, equals(3));
+        expect(game.isBadgeUnlocked('consistency_star'), isTrue);
+      },
+    );
+
+    test(
+      '17. Leaderboard sorting ranks by lifetimeCoins descending so spending does not drop rank',
+      () {
+        final studentA = GamificationModel(
+          studentId: 'std_A',
+          coins: 50, // Spent 450 coins on rewards
+          lifetimeCoins: 500,
+          totalEventsAttended: 10,
+        );
+
+        final studentB = GamificationModel(
+          studentId: 'std_B',
+          coins: 200, // Has more spendable coins but lower lifetime
+          lifetimeCoins: 200,
+          totalEventsAttended: 4,
+        );
+
+        final list = [studentB, studentA];
+        list.sort((a, b) {
+          final cmp = b.lifetimeCoins.compareTo(a.lifetimeCoins);
+          if (cmp != 0) return cmp;
+          return b.totalEventsAttended.compareTo(a.totalEventsAttended);
+        });
+
+        expect(list.first.studentId, equals('std_A'));
+        expect(list.last.studentId, equals('std_B'));
+      },
+    );
+
+    test('18. Stable referral code generation derived from studentId', () {
+      final model = GamificationModel(studentId: 'yjrvbc999_xyz');
+      expect(model.referralCode, startsWith('CAMPUS-'));
+      expect(model.referralCode.length, equals(13)); // CAMPUS- (7) + 6 chars
+      expect(model.referralCode, equals(model.referralCode.toUpperCase()));
+
+      // Same studentId always produces identical referral code
+      final model2 = GamificationModel(studentId: 'yjrvbc999_xyz');
+      expect(model2.referralCode, equals(model.referralCode));
     });
 
-    test('12. Reward availability checks reject disabled, out of stock, and expired rewards', () {
-      final baseReward = RewardModel(
-        id: 'r_test',
-        title: 'Campus Hoodie',
-        description: 'Official merch',
+    test('19. Daily app-open streak tracking and date key calculations', () {
+      final model = GamificationModel(
+        studentId: 'std_daily',
+        dailyStreak: 3,
+        longestDailyStreak: 5,
+        lastDailyOpenDate: '2026-10-10',
+        distinctDailyOpenDates: ['2026-10-08', '2026-10-09', '2026-10-10'],
+      );
+
+      // Same day check
+      expect(model.isDailyOpenClaimedForDate('2026-10-10'), isTrue);
+      // Next day check
+      expect(model.isDailyOpenClaimedForDate('2026-10-11'), isFalse);
+
+      final todayKey = GamificationService.getCalendarDateKey(
+        DateTime(2026, 10, 12),
+      );
+      expect(todayKey, equals('2026-10-12'));
+
+      final diff = GamificationService.daysDifference(
+        '2026-10-10',
+        '2026-10-11',
+      );
+      expect(diff, equals(1));
+
+      final gapDiff = GamificationService.daysDifference(
+        '2026-10-08',
+        '2026-10-11',
+      );
+      expect(gapDiff, equals(3));
+    });
+
+    test(
+      '20. ReferralValidationResult and ReferralValidationStatus models',
+      () {
+        const validRes = ReferralValidationResult(
+          status: ReferralValidationStatus.valid,
+          message: 'Valid referral code from Priya!',
+          referrerUid: 'priya_123',
+          referrerName: 'Priya',
+          normalizedCode: 'CAMPUS-PRIYA1',
+        );
+        expect(validRes.isValid, isTrue);
+        expect(validRes.referrerName, equals('Priya'));
+
+        const invalidRes = ReferralValidationResult(
+          status: ReferralValidationStatus.notFound,
+          message: 'Referral code not found.',
+        );
+        expect(invalidRes.isValid, isFalse);
+
+        const selfRes = ReferralValidationResult(
+          status: ReferralValidationStatus.selfReferral,
+          message: 'You cannot use your own referral code.',
+        );
+        expect(selfRes.isValid, isFalse);
+        expect(selfRes.status, equals(ReferralValidationStatus.selfReferral));
+      },
+    );
+
+    test(
+      '21. Certificate benefit sample rewards are categorized and labelled correctly',
+      () {
+        final certReward = RewardModel(
+          id: 'cert_workshop_participation',
+          title: 'Workshop Participation Certificate (Sample Perk)',
+          description: 'Demonstration certificate perk.',
+          category: RewardCategories.certificate,
+          coinCost: 150,
+          availableStock: -1,
+          termsAndConditions:
+              'Demo only - does not replace official college certificate.',
+        );
+
+        expect(certReward.category, equals(RewardCategories.certificate));
+        expect(
+          RewardCategories.getLabel(certReward.category),
+          equals('Certificate Benefit'),
+        );
+        expect(certReward.isUnlimitedStock, isTrue);
+        expect(certReward.coinCost, equals(150));
+        expect(
+          certReward.termsAndConditions,
+          contains('does not replace official college certificate'),
+        );
+      },
+    );
+
+    test('22. Daily streak milestone badges unlock at 3, 7, 14, and 30 days', () {
+      final b3 = BadgeDefinition.findById('daily_streak_3');
+      final b7 = BadgeDefinition.findById('daily_streak_7');
+      final b14 = BadgeDefinition.findById('daily_streak_14');
+      final b30 = BadgeDefinition.findById('daily_streak_30');
+
+      expect(b3, isNotNull);
+      expect(b7, isNotNull);
+      expect(b14, isNotNull);
+      expect(b30, isNotNull);
+
+      expect(b3!.isDailyStreakBadge, isTrue);
+      expect(b3.requiredStreakDays, equals(3));
+      expect(b7!.requiredStreakDays, equals(7));
+      expect(b14!.requiredStreakDays, equals(14));
+      expect(b30!.requiredStreakDays, equals(30));
+
+      final modelDay5 = GamificationModel(
+        studentId: 'std_streak5',
+        dailyStreak: 5,
+        longestDailyStreak: 5,
+        currentStreak: 1, // Event attendance streak remains independent
+      );
+
+      // Daily streak badges measure dailyStreak, not event attendance streak
+      expect(modelDay5.getBadgeProgress(b3), equals(1.0));
+      expect(modelDay5.getBadgeProgress(b7), closeTo(5 / 7, 0.01));
+      expect(modelDay5.getBadgeProgressText(b7), equals('5 / 7 days'));
+
+      // Event attendance badge consistency_star (requires 3 event days) uses currentStreak (1)
+      final eventStreakBadge = BadgeDefinition.findById('consistency_star')!;
+      expect(
+        modelDay5.getBadgeProgress(eventStreakBadge),
+        closeTo(1 / 3, 0.01),
+      );
+    });
+
+    test('23. Per-student redemption limit detection for one-time rewards', () {
+      final oneTimeReward = RewardModel(
+        id: 'one_time_hoodie',
+        title: 'Campus Branded Hoodie',
+        description: 'Limit 1 per student',
         category: RewardCategories.collegePerk,
-        coinCost: 200,
-        availableStock: 10,
-        isEnabled: true,
-      );
-      expect(baseReward.isCurrentlyAvailable, isTrue);
-
-      final disabled = baseReward.copyWith(isEnabled: false);
-      expect(disabled.isCurrentlyAvailable, isFalse);
-
-      final outOfStock = baseReward.copyWith(availableStock: 0);
-      expect(outOfStock.isCurrentlyAvailable, isFalse);
-      expect(outOfStock.isOutOfStock, isTrue);
-
-      final expired = baseReward.copyWith(
-        expiryDate: DateTime.now().subtract(const Duration(days: 1)),
-      );
-      expect(expired.isCurrentlyAvailable, isFalse);
-      expect(expired.isExpired, isTrue);
-    });
-
-    test('13. Reward eligibility checks enforce academic year and department restrictions', () {
-      final reward = RewardModel(
-        id: 'r_spec',
-        title: 'Final Year Project Grant',
-        description: 'For 4th year CSE students only',
-        category: RewardCategories.custom,
         coinCost: 500,
-        eligibilityYears: [AcademicYears.year4],
-        eligibilityDepartments: [AcademicDepartments.cse],
+        perStudentLimit: 1,
       );
 
-      final userCSE4 = UserModel(
-        uid: 'u1',
-        email: 'u1@test.com',
-        name: 'CSE Final Year',
-        rollNumber: 'R1',
-        role: 'student',
-        year: AcademicYears.year4,
-        department: AcademicDepartments.cse,
-      );
+      expect(oneTimeReward.perStudentLimit, equals(1));
 
-      final userMech2 = UserModel(
-        uid: 'u2',
-        email: 'u2@test.com',
-        name: 'Mech 2nd Year',
-        rollNumber: 'R2',
-        role: 'student',
-        year: AcademicYears.year2,
-        department: AcademicDepartments.mech,
-      );
+      final previousRedemptions = [
+        RewardRedemptionModel(
+          id: 'red_1',
+          studentId: 'std_test',
+          studentName: 'Test Student',
+          rewardId: 'one_time_hoodie',
+          rewardTitle: 'Campus Branded Hoodie',
+          rewardCategory: RewardCategories.collegePerk,
+          coinCost: 500,
+          status: RedemptionStatuses.approved,
+          redeemedAt: DateTime.now(),
+        ),
+      ];
 
-      expect(AcademicYears.matches(reward.eligibilityYears, userCSE4.year), isTrue);
-      expect(AcademicDepartments.matches(reward.eligibilityDepartments, userCSE4.department), isTrue);
+      final userRedemptionsForReward = previousRedemptions
+          .where(
+            (r) =>
+                r.rewardId == oneTimeReward.id &&
+                r.status != RedemptionStatuses.cancelled &&
+                r.status != RedemptionStatuses.rejected &&
+                r.status != RedemptionStatuses.refunded,
+          )
+          .length;
 
-      expect(AcademicYears.matches(reward.eligibilityYears, userMech2.year), isFalse);
-      expect(AcademicDepartments.matches(reward.eligibilityDepartments, userMech2.department), isFalse);
+      final isLimitReached =
+          oneTimeReward.perStudentLimit > 0 &&
+          userRedemptionsForReward >= oneTimeReward.perStudentLimit;
+
+      expect(isLimitReached, isTrue);
     });
 
-    test('14. Free Event Registration validates capacity and deadline before granting pass', () {
-      final now = DateTime.now();
-      final fullEvent = EventModel(
-        id: 'evt_full',
-        title: 'AI Summit',
-        description: 'Annual summit',
-        category: 'Workshop',
-        date: now.add(const Duration(days: 5)),
-        startTime: '10:00 AM',
-        endTime: '12:00 PM',
-        venue: 'Main Auditorium',
-        organizer: 'CSE Dept',
-        maxSeats: 100,
-        availableSeats: 0,
-        registrationFee: 0,
-        registrationDeadline: now.add(const Duration(days: 4)),
-      );
-      expect(fullEvent.isFull, isTrue);
-      expect(fullEvent.availableSeats, equals(0));
+    test(
+      '24. Deterministic idempotency ledger keys for referral qualification',
+      () {
+        const referralId = 'stdA_stdB';
+        const refLedgerKey = 'REF_BONUS_${referralId}_referrer';
+        const studLedgerKey = 'REF_BONUS_${referralId}_student';
 
-      final expiredEvent = EventModel(
-        id: 'evt_expired',
-        title: 'Past Hackathon',
-        description: 'Past event',
-        category: 'Hackathon',
-        date: now.subtract(const Duration(days: 2)),
-        startTime: '10:00 AM',
-        endTime: '12:00 PM',
-        registrationDeadline: now.subtract(const Duration(days: 3)),
-        venue: 'Lab 1',
-        organizer: 'IT Dept',
-        maxSeats: 50,
-        availableSeats: 30,
-        registrationFee: 0,
-      );
-      expect(expiredEvent.isDeadlinePassed, isTrue);
-
-      final openEvent = EventModel(
-        id: 'evt_open',
-        title: 'Tech Fest',
-        description: 'Open event',
-        category: 'Fest',
-        date: now.add(const Duration(days: 10)),
-        startTime: '09:00 AM',
-        endTime: '05:00 PM',
-        venue: 'Auditorium 2',
-        organizer: 'College',
-        maxSeats: 150,
-        availableSeats: 110,
-        registrationFee: 0,
-        registrationDeadline: now.add(const Duration(days: 9)),
-      );
-      expect(openEvent.isFull, isFalse);
-      expect(openEvent.isDeadlinePassed, isFalse);
-      expect(openEvent.availableSeats, equals(110));
-    });
-
-    test('15. Referral logic rejects self-referrals and identifies qualified status', () {
-      final studentUid = 'std_abc';
-      final referrerUid = 'std_abc';
-      expect(studentUid == referrerUid, isTrue);
-
-      final referralRecord = ReferralRecordModel(
-        id: 'referrer_std123',
-        referrerUid: 'ref_999',
-        referrerCode: 'CAMPUS-REF999',
-        referredUid: 'std_new',
-        referredName: 'New Student',
-        status: 'pending',
-      );
-      expect(referralRecord.status, equals('pending'));
-
-      final qualifiedRecord = referralRecord.copyWith(
-        status: 'qualified',
-        coinsAwarded: 50,
-        qualifiedAt: DateTime.now(),
-      );
-      expect(qualifiedRecord.status, equals('qualified'));
-      expect(qualifiedRecord.coinsAwarded, equals(50));
-    });
-
-    test('16. Milestone badges unlock sequentially on attendance milestones', () {
-      var game = GamificationModel(studentId: 'std_badges');
-
-      // 1 event
-      var res = GamificationService.computeReward(
-        currentGamification: game,
-        studentId: 'std_badges',
-        eventId: 'e1',
-        eventTitle: 'Event 1',
-        attendedAt: DateTime(2026, 10, 1),
-      );
-      game = res.updatedGamification;
-      expect(game.isBadgeUnlocked('first_step'), isTrue);
-      expect(game.isBadgeUnlocked('event_explorer'), isFalse);
-
-      // Fast forward to 5 events
-      game = game.copyWith(totalEventsAttended: 4);
-      res = GamificationService.computeReward(
-        currentGamification: game,
-        studentId: 'std_badges',
-        eventId: 'e5',
-        eventTitle: 'Event 5',
-        attendedAt: DateTime(2026, 10, 5),
-      );
-      game = res.updatedGamification;
-      expect(game.isBadgeUnlocked('event_explorer'), isTrue);
-
-      // Fast forward to 10 events
-      game = game.copyWith(totalEventsAttended: 9);
-      res = GamificationService.computeReward(
-        currentGamification: game,
-        studentId: 'std_badges',
-        eventId: 'e10',
-        eventTitle: 'Event 10',
-        attendedAt: DateTime(2026, 10, 10),
-      );
-      game = res.updatedGamification;
-      expect(game.isBadgeUnlocked('campus_champion'), isTrue);
-
-      // 3-day consecutive streak unlocks consistency_star
-      game = game.copyWith(currentStreak: 2, lastAttendedDate: '2026-10-10');
-      res = GamificationService.computeReward(
-        currentGamification: game,
-        studentId: 'std_badges',
-        eventId: 'e11',
-        eventTitle: 'Event 11',
-        attendedAt: DateTime(2026, 10, 11),
-      );
-      game = res.updatedGamification;
-      expect(game.currentStreak, equals(3));
-      expect(game.isBadgeUnlocked('consistency_star'), isTrue);
-    });
-
-    test('17. Leaderboard sorting ranks by lifetimeCoins descending so spending does not drop rank', () {
-      final studentA = GamificationModel(
-        studentId: 'std_A',
-        coins: 50, // Spent 450 coins on rewards
-        lifetimeCoins: 500,
-        totalEventsAttended: 10,
-      );
-
-      final studentB = GamificationModel(
-        studentId: 'std_B',
-        coins: 200, // Has more spendable coins but lower lifetime
-        lifetimeCoins: 200,
-        totalEventsAttended: 4,
-      );
-
-      final list = [studentB, studentA];
-      list.sort((a, b) {
-        final cmp = b.lifetimeCoins.compareTo(a.lifetimeCoins);
-        if (cmp != 0) return cmp;
-        return b.totalEventsAttended.compareTo(a.totalEventsAttended);
-      });
-
-      expect(list.first.studentId, equals('std_A'));
-      expect(list.last.studentId, equals('std_B'));
-    });
+        expect(refLedgerKey, equals('REF_BONUS_stdA_stdB_referrer'));
+        expect(studLedgerKey, equals('REF_BONUS_stdA_stdB_student'));
+      },
+    );
   });
 }

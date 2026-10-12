@@ -430,7 +430,6 @@ class WhatsAppService {
       }
       return WhatsAppApiResult.noConsent();
     }
-
     // 2. Validate recipient phone number
     final String targetNumber = registration.whatsappNumber.isNotEmpty
         ? registration.whatsappNumber

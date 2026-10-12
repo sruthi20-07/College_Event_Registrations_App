@@ -13,6 +13,7 @@ import 'manage_events_screen.dart';
 import 'admin_feedback_screen.dart';
 import 'admin_gamification_screen.dart';
 import 'admin_live_qr_screen.dart';
+import 'admin_poll_management_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -62,12 +63,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               backgroundColor: AppColors.cardWhite,
               indicatorColor: AppColors.coralLight,
               selectedIconTheme: const IconThemeData(color: AppColors.coral),
-              unselectedIconTheme: const IconThemeData(color: AppColors.textSecondary),
+              unselectedIconTheme: const IconThemeData(
+                color: AppColors.textSecondary,
+              ),
               selectedLabelTextStyle: const TextStyle(
                 color: AppColors.coral,
                 fontWeight: FontWeight.bold,
               ),
-              unselectedLabelTextStyle: const TextStyle(color: AppColors.textSecondary),
+              unselectedLabelTextStyle: const TextStyle(
+                color: AppColors.textSecondary,
+              ),
               labelType: NavigationRailLabelType.all,
               leading: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 20),
@@ -103,7 +108,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 ),
               ],
             ),
-            const VerticalDivider(thickness: 1, width: 1, color: AppColors.border),
+            const VerticalDivider(
+              thickness: 1,
+              width: 1,
+              color: AppColors.border,
+            ),
             Expanded(child: _buildBody()),
           ],
         ),
@@ -128,7 +137,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           backgroundColor: AppColors.cardWhite,
           selectedItemColor: AppColors.coral,
           unselectedItemColor: AppColors.textSecondary,
-          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+          selectedLabelStyle: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 12,
+          ),
           unselectedLabelStyle: const TextStyle(fontSize: 12),
           elevation: 0,
           items: const [
@@ -193,9 +205,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => const AdminLiveQrScreen(),
-                ),
+                MaterialPageRoute(builder: (_) => const AdminLiveQrScreen()),
               );
             },
             icon: Container(
@@ -212,6 +222,34 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 Icons.qr_code_2_rounded,
                 size: 19,
                 color: AppColors.mintDark,
+              ),
+            ),
+          ),
+          // TOP-BAR DAILY CAMPUS POLL MANAGEMENT ICON
+          IconButton(
+            tooltip: 'Daily Campus Poll Management',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const AdminPollManagementScreen(),
+                ),
+              );
+            },
+            icon: Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: AppColors.lavenderLight,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: AppColors.lavender.withValues(alpha: 0.3),
+                  width: 1.0,
+                ),
+              ),
+              child: const Icon(
+                Icons.poll_rounded,
+                size: 19,
+                color: AppColors.lavenderDark,
               ),
             ),
           ),
@@ -238,10 +276,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [
-                        Color(0xFFFFEDE6),
-                        Color(0xFFEDE9FE),
-                      ],
+                      colors: [Color(0xFFFFEDE6), Color(0xFFEDE9FE)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
@@ -279,7 +314,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             ),
                             const SizedBox(height: 3),
                             Text(
-                              _authService.currentUser?.email ?? 'admin@college.edu',
+                              _authService.currentUser?.email ??
+                                  'admin@college.edu',
                               style: const TextStyle(
                                 color: AppColors.textSecondary,
                                 fontSize: 13,
@@ -313,7 +349,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   builder: (context, eventSnapshot) {
                     final events = eventSnapshot.data ?? [];
                     final totalEvents = events.length;
-                    final activeEvents = events.where((e) => e.isPublished).length;
+                    final activeEvents = events
+                        .where((e) => e.isPublished)
+                        .length;
                     final upcomingEvents = events
                         .where((e) => !e.isDeadlinePassed)
                         .length;
@@ -327,12 +365,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             .length;
 
                         return GridView.count(
-                          crossAxisCount: MediaQuery.of(context).size.width > 700
-                              ? 4
-                              : 2,
+                          crossAxisCount:
+                              MediaQuery.of(context).size.width > 700 ? 4 : 2,
                           crossAxisSpacing: 12,
                           mainAxisSpacing: 12,
-                          childAspectRatio: MediaQuery.of(context).size.width > 700
+                          childAspectRatio:
+                              MediaQuery.of(context).size.width > 700
                               ? 1.15
                               : 1.25,
                           shrinkWrap: true,
@@ -394,14 +432,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       },
                       style: TextButton.styleFrom(
                         foregroundColor: AppColors.coral,
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         minimumSize: Size.zero,
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
                       icon: const Icon(Icons.arrow_forward, size: 14),
                       label: const Text(
                         'View All Events',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
                       ),
                     ),
                   ],
@@ -434,7 +478,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         icon: const Icon(Icons.add, size: 18),
                         label: const Text(
                           'Add New Event',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
                         ),
                       ),
                     ),
@@ -453,10 +500,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         onPressed: () {
                           setState(() => _selectedIndex = 2);
                         },
-                        icon: const Icon(Icons.format_list_bulleted, size: 18, color: AppColors.lavender),
+                        icon: const Icon(
+                          Icons.format_list_bulleted,
+                          size: 18,
+                          color: AppColors.lavender,
+                        ),
                         label: const Text(
                           'View Registrations',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
                         ),
                       ),
                     ),
@@ -493,7 +547,48 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ),
                     label: const Text(
                       'Campus Rewards & Gamification',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                // DAILY CAMPUS POLL MANAGEMENT ACTION
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: AppColors.cardWhite,
+                      foregroundColor: AppColors.textMain,
+                      side: const BorderSide(color: AppColors.border),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AdminPollManagementScreen(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(
+                      Icons.poll_outlined,
+                      size: 20,
+                      color: AppColors.mintDark,
+                    ),
+                    label: const Text(
+                      'Daily Campus Poll Management',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
                     ),
                   ),
                 ),
@@ -523,9 +618,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       onPressed: () {
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (_) => const AdminFeedbackScreen(),
-          ),
+          MaterialPageRoute(builder: (_) => const AdminFeedbackScreen()),
         );
       },
       child: const Icon(
@@ -636,11 +729,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 const SizedBox(height: 4),
                 Text(
                   user?.email ?? 'admin@college.edu',
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                  ),
                 ),
                 const SizedBox(height: 14),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.lavenderLight,
                     borderRadius: BorderRadius.circular(20),

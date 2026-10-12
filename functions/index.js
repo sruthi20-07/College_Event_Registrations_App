@@ -774,3 +774,196 @@ exports.adminAdjustCoinsCallable = functions.https.onCall(
   }
 );
 
+/**
+ * 7. AUTOMATED REFERRAL QUALIFICATION TRIGGER:
+ * Executes whenever a registration attendance is verified.
+ * Checks if attendee was referred by another student with 'pending' status.
+ * Atomically awards configured coins (+50 referrer, +50 referred) and marks referral completed.
+ */
+exports.onRegistrationAttended = functions.firestore
+  .document("registrations/{registrationId}")
+  .onWrite(async (change, context) => {
+    if (!change.after.exists) return null;
+
+    const afterData = change.after.data();
+    const beforeData = change.before.exists ? change.before.data() : null;
+
+    const isNowAttended =
+      afterData.attended === true ||
+      afterData.attendanceStatus === "attended";
+    const wasAlreadyAttended =
+      beforeData &&
+      (beforeData.attended === true ||
+        beforeData.attendanceStatus === "attended");
+
+    if (!isNowAttended || wasAlreadyAttended) {
+      return null;
+    }
+
+    const studentId = afterData.studentId || afterData.userId || "";
+    if (!studentId) return null;
+
+    const eventId = afterData.eventId || "";
+
+    try {
+      // 1. Fetch configured referral reward amount if defined
+      let referrerCoinAward = 50;
+      let referredCoinAward = 50;
+      try {
+        const ruleDoc = await db
+          .collection("gamification_rules")
+          .doc("referral")
+          .get();
+        if (ruleDoc.exists && ruleDoc.data().coinAmount) {
+          referrerCoinAward = Number(ruleDoc.data().coinAmount);
+        }
+      } catch (err) {
+        console.warn("Could not read referral rule:", err);
+      }
+
+      // 2. Locate pending referral
+      let referralDoc = null;
+
+      // Check student's gamification profile first for referredBy
+      const studentGameDoc = await db
+        .collection("gamification")
+        .doc(studentId)
+        .get();
+      if (studentGameDoc.exists && studentGameDoc.data().referredBy) {
+        const directId = `${studentGameDoc.data().referredBy}_${studentId}`;
+        const directDoc = await db.collection("referrals").doc(directId).get();
+        if (directDoc.exists && directDoc.data().status === "pending") {
+          referralDoc = directDoc;
+        }
+      }
+
+      // Fallback query by referredUid
+      if (!referralDoc) {
+        const query = await db
+          .collection("referrals")
+          .where("referredUid", "==", studentId)
+          .where("status", "==", "pending")
+          .limit(1)
+          .get();
+        if (!query.empty) {
+          referralDoc = query.docs[0];
+        }
+      }
+
+      if (!referralDoc || !referralDoc.exists) {
+        return null;
+      }
+
+      const referral = referralDoc.data();
+      const referralId = referralDoc.id;
+      const referrerUid = referral.referrerUid;
+
+      return await db.runTransaction(async (transaction) => {
+        // Re-read referral doc in transaction to prevent duplicate claims
+        const freshRef = await transaction.get(referralDoc.ref);
+        if (!freshRef.exists) return null;
+        const freshStatus = freshRef.data().status;
+        if (freshStatus === "completed" || freshStatus === "qualified" || freshStatus !== "pending") {
+          return null;
+        }
+
+        // Referrer profile
+        const referrerGameRef = db.collection("gamification").doc(referrerUid);
+        const referrerProfile = await transaction.get(referrerGameRef);
+        if (referrerProfile.exists) {
+          const rData = referrerProfile.data();
+          const rCoins = Number(rData.coins || 0) + referrerCoinAward;
+          const rLifetime =
+            Number(rData.lifetimeCoins || 0) + referrerCoinAward;
+          transaction.set(
+            referrerGameRef,
+            {
+              coins: rCoins,
+              lifetimeCoins: rLifetime,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+
+          // Referrer ledger
+          const refLedgerRef = db
+            .collection("reward_history")
+            .doc(`REF_BONUS_${referralId}_referrer`);
+          transaction.set(refLedgerRef, {
+            id: `REF_BONUS_${referralId}_referrer`,
+            studentId: referrerUid,
+            amount: referrerCoinAward,
+            coinsAwarded: referrerCoinAward,
+            type: "referral_bonus",
+            rewardType: "referral_bonus",
+            title: `Referral Reward (+${referrerCoinAward} Coins)`,
+            rewardReason: `Referral qualified by ${
+              referral.referredName || "Student"
+            }`,
+            refId: studentId,
+            idempotencyKey: `REF_BONUS_${referralId}_referrer`,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        }
+
+        // Referred student profile
+        const studentGameRef = db.collection("gamification").doc(studentId);
+        const studentProfile = await transaction.get(studentGameRef);
+        if (studentProfile.exists) {
+          const sData = studentProfile.data();
+          const sCoins = Number(sData.coins || 0) + referredCoinAward;
+          const sLifetime =
+            Number(sData.lifetimeCoins || 0) + referredCoinAward;
+          transaction.set(
+            studentGameRef,
+            {
+              coins: sCoins,
+              lifetimeCoins: sLifetime,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+
+          // Student ledger
+          const studLedgerRef = db
+            .collection("reward_history")
+            .doc(`REF_BONUS_${referralId}_student`);
+          transaction.set(studLedgerRef, {
+            id: `REF_BONUS_${referralId}_student`,
+            studentId: studentId,
+            amount: referredCoinAward,
+            coinsAwarded: referredCoinAward,
+            type: "referral_bonus",
+            rewardType: "referral_bonus",
+            title: `Referral Welcome Bonus (+${referredCoinAward} Coins)`,
+            rewardReason: "Joined using referral code",
+            refId: referrerUid,
+            idempotencyKey: `REF_BONUS_${referralId}_student`,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        }
+
+        // Mark referral completed
+        transaction.update(referralDoc.ref, {
+          status: "completed",
+          coinsAwarded: referrerCoinAward,
+          friendCoinsAwarded: referredCoinAward,
+          completedAt: admin.firestore.FieldValue.serverTimestamp(),
+          qualifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+          eventId: eventId,
+        });
+
+        console.log(
+          `Successfully qualified referral ${referralId}: Referrer ${referrerUid} (+${referrerCoinAward}), Referred ${studentId} (+${referredCoinAward})`
+        );
+        return { success: true, referralId };
+      });
+    } catch (error) {
+      console.error(
+        "Error in onRegistrationAttended referral qualification:",
+        error
+      );
+      return null;
+    }
+  });
+

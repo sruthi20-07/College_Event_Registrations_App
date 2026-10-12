@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import '../models/user_model.dart';
 import '../utils/constants.dart';
+import 'gamification_service.dart';
 
 class AuthService {
   FirebaseAuth get _auth => FirebaseAuth.instance;
@@ -91,32 +92,31 @@ class AuthService {
 
   /// Streams User profile document from Firestore
   Stream<UserModel?> streamUserProfile(String uid) {
-    return _db
-        .collection('users')
-        .doc(uid)
-        .snapshots()
-        .map((doc) {
-          if (doc.exists && doc.data() != null) {
-            return UserModel.fromSnapshot(doc);
-          }
-          final current = currentUser;
-          if (current != null && current.uid == uid) {
-            final email = (current.email ?? '').trim().toLowerCase();
-            if (email == 'admin@collegeevent.com' || email == 'admin@college.edu') {
-              _ensureAdminProfileDoc(uid, current.email ?? 'admin@collegeevent.com');
-              return UserModel(
-                uid: uid,
-                name: 'College Administrator',
-                email: current.email ?? 'admin@collegeevent.com',
-                rollNumber: 'ADMIN',
-                department: 'Administration',
-                year: 'Staff',
-                role: UserRoles.admin,
-              );
-            }
-          }
-          return null;
-        });
+    return _db.collection('users').doc(uid).snapshots().map((doc) {
+      if (doc.exists && doc.data() != null) {
+        return UserModel.fromSnapshot(doc);
+      }
+      final current = currentUser;
+      if (current != null && current.uid == uid) {
+        final email = (current.email ?? '').trim().toLowerCase();
+        if (email == 'admin@collegeevent.com' || email == 'admin@college.edu') {
+          _ensureAdminProfileDoc(
+            uid,
+            current.email ?? 'admin@collegeevent.com',
+          );
+          return UserModel(
+            uid: uid,
+            name: 'College Administrator',
+            email: current.email ?? 'admin@collegeevent.com',
+            rollNumber: 'ADMIN',
+            department: 'Administration',
+            year: 'Staff',
+            role: UserRoles.admin,
+          );
+        }
+      }
+      return null;
+    });
   }
 
   Future<void> _ensureAdminProfileDoc(String uid, String email) async {
@@ -150,6 +150,7 @@ class AuthService {
     required String department,
     required String year,
     String role = UserRoles.student,
+    String? referralCode,
   }) async {
     try {
       final UserCredential credential = await _auth
@@ -177,6 +178,29 @@ class AuthService {
           .set(userModel.toMap())
           .timeout(const Duration(seconds: 10));
 
+      // Always initialize gamification profile with permanent referral code for students
+      if (role == UserRoles.student) {
+        try {
+          final gameService = GamificationService();
+          await gameService.ensureStudentGamificationProfile(
+            uid,
+            studentName: name.trim(),
+          );
+
+          if (referralCode != null && referralCode.trim().isNotEmpty) {
+            await gameService.registerReferralCode(
+              newStudentUid: uid,
+              newStudentName: name.trim(),
+              enteredReferralCode: referralCode.trim(),
+            );
+          }
+        } catch (e) {
+          debugPrint(
+            'Non-fatal error initializing gamification/referral on signup: $e',
+          );
+        }
+      }
+
       return userModel;
     } on FirebaseAuthException {
       rethrow;
@@ -191,11 +215,10 @@ class AuthService {
     required String password,
   }) async {
     try {
-      final UserCredential credential = await _auth
-          .signInWithEmailAndPassword(
-            email: email.trim(),
-            password: password,
-          );
+      final UserCredential credential = await _auth.signInWithEmailAndPassword(
+        email: email.trim(),
+        password: password,
+      );
       return credential;
     } on FirebaseAuthException {
       rethrow;
@@ -211,11 +234,15 @@ class AuthService {
     required bool whatsappConsent,
   }) async {
     try {
-      await _db.collection('users').doc(uid).set({
-        'whatsappNumber': whatsappNumber.trim(),
-        'whatsappConsent': whatsappConsent,
-        'whatsappConsentAt': whatsappConsent ? Timestamp.now() : null,
-      }, SetOptions(merge: true)).timeout(const Duration(seconds: 8));
+      await _db
+          .collection('users')
+          .doc(uid)
+          .set({
+            'whatsappNumber': whatsappNumber.trim(),
+            'whatsappConsent': whatsappConsent,
+            'whatsappConsentAt': whatsappConsent ? Timestamp.now() : null,
+          }, SetOptions(merge: true))
+          .timeout(const Duration(seconds: 8));
     } catch (e) {
       debugPrint('Error updating WhatsApp preferences: $e');
       rethrow;
